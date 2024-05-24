@@ -1,0 +1,262 @@
+h1{
+  color: #34435a;
+}
+
+h2{
+  color: #34435a;
+}
+
+h3{
+  color: #34435a;
+}
+
+h4{
+  color: #34435a;
+}
+
+h5{
+  color: #34435a;
+}
+
+h6{
+  color: #34435a;
+}
+
+.shiny-input-container {
+    color: #555555;
+    font-weight: 400;
+}
+
+label {
+    display: inline-block;
+    max-width: 100%;
+    margin-bottom: 5px;
+    font-weight: 400;
+}
+
+.content-wrapper {
+    background-color: #eae9ed;
+    border-radius: 0px 0px 30px 30px;
+}
+
+.skin-blue .main-header .logo {
+    background-color: #34435a;
+    height: 0px;
+}
+
+.skin-blue .main-header .navbar {
+    background-color: #fff;
+    height: 60px;
+}
+
+.skin-blue .left-side, .skin-blue .main-sidebar, .skin-blue .wrapper {
+    background-color: #34435a;
+    color: #a7b6d4;
+}
+
+.skin-blue .main-sidebar .sidebar .sidebar-menu a:hover{
+    color: white;
+    background-color: rgba(255,255,255,0.1);
+    border-radius: 100px 0px 0px 100px;
+}
+
+.skin-blue .main-sidebar .sidebar .sidebar-menu a:focus{
+    outline: none !important;
+}
+
+.skin-blue .sidebar-menu>li.active>a {
+    background-color: #2c384e;
+    border-left-color: #2c384e;
+    border-radius: 100px 0px 0px 100px;
+    color: white;
+}
+
+.info{
+  color:#44CDC4;
+  background-color: white;
+  border-color: white;
+  margin-top: 5px;
+  margin-right: 30px;
+  font-size: 22px;
+  border-radius: 100px;
+}
+
+.info:hover{
+  color: #44CDC4;
+  background-color: white;
+  border-color: white;
+
+}
+
+.sidebar-toggle {
+  display: none;
+}
+
+.uploadWell{
+  background-color: white;
+  border-color: #44CDC4;
+  border-style: dashed;
+  text-align: center;
+  border-radius: 18px;
+  width: 480px;
+  height: auto;
+  margin: auto;
+}
+
+.dataPreviewWell{
+  background-color: white;
+  border-color: #44CDC4;
+  border-radius: 10px;
+  width: 100%;
+  height: auto;
+  margin: auto;
+  margin-top: 10px;
+  overflow-x:scroll;
+}
+
+.dataPreview{
+  background-color: white;
+  text-align: center;
+  border-radius: 10px;
+  width: 100%;
+  height: 160px;
+  margin: auto;
+  overflow: auto;
+  margin-top: 10px;
+}
+
+.cleanDataPreview{
+  background-color: white;
+  text-align: center;
+  border-radius: 10px;
+  width: 100%;
+  height: 180px;
+  margin: auto;
+  overflow: auto;
+  margin-top: 10px;
+}
+
+.colAssignWell{
+  background-color: white;
+  border-color: #44CDC4;
+  border-radius: 10px;
+  width: 100%;
+  height: auto;
+  margin: auto;
+  margin-top: 10px;
+}
+
+.contentWell{
+  background-color: white;
+  border-color: #44CDC4;
+  border-radius: 10px;
+  width: 100%;
+  height: auto;
+  margin: auto;
+  margin-top: 10px;
+}
+
+.uploadIcon{
+  font-size:80px; 
+  color:#44CDC4;
+  display: block; 
+  margin-left: auto; 
+  margin-right: auto; 
+  text-align:center
+}
+
+.submitButton {
+    background-color: #44CDC4;
+    color: white;
+    border-color: #44CDC4;
+    border-radius: 100px;
+}
+
+.clearButton {
+    background-color: white;
+    color: #44CDC4;
+    border-color: #44CDC4;
+    border-radius: 100px;
+}
+
+.processButton {
+    background-color: #44CDC4;
+    color: white;
+    border-color: #44CDC4;
+    border-radius: 100px;
+    float: right;
+    margin-top: 10px;
+}
+
+.resetButton {
+    background-color: white;
+    color: #44CDC4;
+    border-color:white;
+    border-radius: 100px;
+    margin-top: -20px;
+    float: right;
+}
+
+.resetButton:hover {
+    background-color: white;
+    color: grey;
+    border-color:white;
+    border-radius: 100px;
+    margin-top: -20px;
+    float: right;
+}
+
+.resetButton:focus {
+    background-color: white;
+    color: #44CDC4;
+    border-color:white;
+    border-radius: 100px;
+    margin-top: -20px;
+    float: right;
+}
+
+.btn.btn-file {
+    position: relative;
+    overflow: hidden;
+    border-radius: 100px;
+}
+
+.progress, .progress .progress-bar, .progress>.progress-bar, .progress>.progress-bar .progress-bar {
+    border-radius: 100px;
+    background-color: #44CDC4;
+}
+
+.selectize-input {
+  white-space: nowrap;
+}
+
+.table {
+    min-width: 100%;
+    max-width: 100%;
+    margin-bottom: 0px;
+    font-size: 12px;
+    color: #34435a;
+    white-space: nowrap;
+}
+
+.nav-icon {
+    font-weight: 900;
+    width: 30px;
+    margin-left: 30px;
+}
+
+.container {
+        display: flex;
+        align-items: center;
+        font-size: 50px;
+        width: 100%;
+      }
+      .container .icon {
+        flex-grow: 1;
+        margin-left: 10vw;
+        text-align: center;
+      }
+      .container .button {
+        text-align: right;
+        margin-right auto;
+      }
