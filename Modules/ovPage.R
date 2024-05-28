@@ -122,27 +122,23 @@ ovPageServer <- function(id, data) {
     })
     
     output$abPlot <- renderPlotly({
-      abBreakdown <- data %>% 
-        group_by(Antimicrobial, Class) %>% 
-        summarize(Count = n(), .groups = "drop") %>% 
-        arrange(-Count) %>% 
-        mutate(ids = ifelse(Class == "", Antimicrobial, 
-                            paste0(Antimicrobial, "-", Class))) %>% 
-        select(ids, everything())
+      abBreakdown <- data %>%
+        group_by(Antimicrobial, Class) %>%
+        summarize(Count = n(), .groups = "drop") %>%
+        arrange(-Count) %>%
+        mutate(ids = ifelse(Class == "", Antimicrobial, paste0(Antimicrobial, "-", Class)))
       
-      par_info <- abBreakdown %>% group_by(Class) %>%
+      parentInfo <- abBreakdown %>%
+        group_by(Class) %>%
         summarise(Count = sum(Count)) %>%
-        rename(Antimicrobial = Class) %>% 
+        rename(Antimicrobial = Class) %>%
         mutate(Class = "", ids = Antimicrobial) %>%
         select(names(abBreakdown))
       
-      plotData <- rbind(abBreakdown, par_info)
+      plotData <- rbind(abBreakdown, parentInfo)
       
-      num_colors <- length(unique(plotData$Antimicrobial))
-      color_palette <- colorRampPalette(c("white", "#44cdc4"))(num_colors)
-      
-      color_mapping <- setNames(color_palette, unique(plotData$Antimicrobial))
-      plotData$colors <- color_mapping[plotData$Antimicrobial]
+      numColors <- length(unique(plotData$Class))
+      colorPalette = gg_color_hue(numColors)
       
       plot_ly(
         data = plotData, 
@@ -158,7 +154,8 @@ ovPageServer <- function(id, data) {
           showlegend = FALSE,
           margin = list(t = 0, b = 0, l = 0, r = 0),
           hovermode = 'closest',
-          modebar = list(add = NULL, remove = "all")
+          modebar = list(add = NULL, remove = "all"),
+          treemapcolorway = colorPalette
         ) %>% 
         config(displayModeBar = FALSE)
     })

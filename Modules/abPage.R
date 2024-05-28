@@ -2,15 +2,26 @@ abPageUI <- function(id, data) {
   ns <- NS(id)
   tagList(
     fluidRow(
+      
+
+# Main Content ------------------------------------------------------------
+
       column(9,
+             
              wellPanel(style = "overflow-x: scroll; overflow-y: scroll; max-height: 80vh;",
                    div(style = "min-width: 1150px; min-height: 750px",
                        plotlyOutput(ns("antibiogramPlot"), height = "700px", width = "100%")
                        ),
                class = "contentWell"
              )
+             
       ),
+      
+
+# Filters -----------------------------------------------------------------
+
       column(3,
+             
              wellPanel(
                h4("Filters", style = "text-align: center;"),
                hr(),
@@ -23,10 +34,63 @@ abPageUI <- function(id, data) {
                dateRangeInput(ns("timeFilter"), "Timeframe", 
                               min = min(data$Date), max = max(data$Date), 
                               start = min(data$Date), end = max(data$Date)),
+               div(
+                   actionButton(ns("last3Months"), "3 mo", class = "quickDateButton"),
+                   actionButton(ns("last6Months"), "6 mo", class = "quickDateButton"),
+                   actionButton(ns("pastYear"), "1 yr", class = "quickDateButton"),
+                   actionButton(ns("yearToDate"), "YTD", class = "quickDateButton"),
+                   actionButton(ns("allData"), "All", class = "quickDateButton"),
+                   class = "quickDateButtonDiv"
+               ),
                actionButton(ns("applyFilter"), "Apply", class = "submitButton"),
                class = "contentWell",
                height = "35vh"
+             ),
+             
+
+# Legend ------------------------------------------------------------------
+
+             wellPanel(
+               h4("Legend", class = "legend-title"),
+               h5("Size", class = "legend-section"),
+               div(
+                 class = "legend-section",
+                 div(
+                   class = "legend-item",
+                   tags$i(class = "fas fa-circle legend-circle", style = "font-size: 10px; margin-left: 10px;"),
+                   span("Low susceptibility (<70%)", class = "legend-label", style = "margin-left: 20px;")
+                 ),
+                 div(
+                   class = "legend-item",
+                   tags$i(class = "fas fa-circle legend-circle", style = "font-size: 20px; margin-left: 5px;"),
+                   span("Moderate susceptibility (70 - 90%)", class = "legend-label", style = "margin-left: 15px;")
+                 ),
+                 div(
+                   class = "legend-item",
+                   tags$i(class = "fas fa-circle legend-circle", style = "font-size: 30px; margin-right: 10px;"),
+                   span("High susceptibility (>90%)", class = "legend-label", style = "margin-left: 0px;")
+                 )
+               ),
+               h5("Opacity", class = "legend-section"),
+               div(
+                 class = "opacity-container",
+                 div(
+                   class = "opacity-item",
+                   tags$i(class = "fas fa-circle legend-circle", style = "opacity: 0.1;"),
+                   span("<30 Samples", class = "legend-label")
+                 ),
+                 div(class = "vertical-divider"),
+                 div(
+                   class = "opacity-item",
+                   tags$i(class = "fas fa-circle legend-circle"),
+                   span("30+ Samples", class = "opacity-label")
+                 )
+               ),
+               h6("Bubbles are colored by antimicrobial class."),
+               h6("Hover over a bubble for more details"),
+               class = "legendWell"
              )
+             
       )
     )
   )
@@ -39,6 +103,36 @@ abPageServer <- function(id, data) {
     
     initialData <- reactive({
       data
+    })
+    
+    observeEvent(input$last3Months, {
+      updateDateRangeInput(session, "timeFilter", 
+                           min = min(data$Date), max = max(data$Date), 
+                           start = max(data$Date) %m-% months(3), end = max(data$Date))
+    })
+    
+    observeEvent(input$last6Months, {
+      updateDateRangeInput(session, "timeFilter", 
+                           min = min(data$Date), max = max(data$Date), 
+                           start = max(data$Date) %m-% months(6), end = max(data$Date))
+    })
+    
+    observeEvent(input$pastYear, {
+      updateDateRangeInput(session, "timeFilter", 
+                           min = min(data$Date), max = max(data$Date), 
+                           start = max(data$Date) %m-% years(1), end = max(data$Date))
+    })
+    
+    observeEvent(input$yearToDate, {
+      updateDateRangeInput(session, "timeFilter", 
+                           min = min(data$Date), max = max(data$Date), 
+                           start = make_date(year(max(data$Date)), 1, 1), end = max(data$Date))
+    })
+    
+    observeEvent(input$allData, {
+      updateDateRangeInput(session, "timeFilter",
+                           min = min(data$Date), max = max(data$Date), 
+                           start = min(data$Date), end = max(data$Date))
     })
     
     filteredData <- eventReactive(input$applyFilter, {
@@ -73,14 +167,14 @@ abPageServer <- function(id, data) {
         filter(Interpretation %in% c("S", "R", "I")) %>%
         mutate(Interpretation = ifelse(Interpretation == "S", 1, 0)) %>%
         add_count(Microorganism, name = "Frequency") %>%
-        filter(Frequency >= min(tail(sort(unique(Frequency)), 20))) %>%
+        filter(Frequency > min(tail(sort(unique(Frequency)), 15))) %>%
         group_by(Microorganism, Antimicrobial, Class) %>%
         summarise(
           obs = n(),
           prop = round(mean(Interpretation == 1), 3),
           .groups = 'drop'
         ) %>%
-        mutate(size = cut(prop, breaks = c(0, 0.5, 0.7, 0.9, 1), labels = c("xs", "s", "m", "l"))) %>%
+        mutate(size = cut(prop, breaks = c(0,0.7, 0.9, 1), labels = c("s", "m", "l"))) %>%
         arrange(Class, Antimicrobial)
       
       unique_drugs <- distinct(result_table, Antimicrobial, Class, .keep_all = TRUE) %>%
@@ -101,7 +195,7 @@ abPageServer <- function(id, data) {
       ) +
         geom_point(shape = 21, stroke = 0.5, aes(alpha = ifelse(obs > 30, 1, obs / 30))) +
         scale_x_discrete(label = str_to_sentence(str_sub(unique_drugs$Antimicrobial, 1, 15))) +
-        scale_size_manual(values = c("xs" = 1.5, "s" = 3, "m" = 4.5, "l" = 6)) +
+        scale_size_manual(values = c("s" = 2, "m" = 5, "l" = 7)) +
         labs(
           title = "",
           x = "",

@@ -46,6 +46,10 @@ dashboardPage(
       
       tabItem("trendsTab", tsPageUI("ts")),
       
+      tabItem("pathogenTab", pathogenPageUI("pathogen")),
+      
+      tabItem("mdrTab", mdrPageUI("mdrn")),
+      
       tabItem("exploreTab", explorePageUI("ex"))
       
     )

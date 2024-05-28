@@ -119,7 +119,7 @@ label {
   text-align: center;
   border-radius: 10px;
   width: 100%;
-  height: 160px;
+  height: 20vh;
   margin: auto;
   overflow: auto;
   margin-top: 10px;
@@ -246,17 +246,97 @@ label {
 }
 
 .container {
-        display: flex;
-        align-items: center;
-        font-size: 50px;
-        width: 100%;
-      }
-      .container .icon {
-        flex-grow: 1;
-        margin-left: 10vw;
-        text-align: center;
-      }
-      .container .button {
-        text-align: right;
-        margin-right auto;
-      }
+    display: flex;
+    align-items: center;
+    font-size: 50px;
+    width: 100%;
+}
+
+.container .icon {
+    flex-grow: 1;
+    margin-left: 10vw;
+    text-align: center;
+}
+
+.container .button {
+    text-align: right;
+    margin-right auto;
+}
+
+.quickDateButton {
+    background-color: #f2f2f2;
+    min-width: 35px;
+    margin: 1px;
+    border-radius: 10px;
+    padding: 3px 6x;
+}
+
+.quickDateButtonDiv{
+  margin-bottom: 12px;
+}
+
+/* AB Legend Items */
+.legendWell{
+    max-width: 270px;
+    float: left;
+    background-color: white;
+    border-color: #44CDC4;
+    border-radius: 10px;
+    width: 100%;
+    height: auto;
+    margin: auto;
+    margin-top: 10px;
+}
+
+.legend-title {
+  text-align: center;
+}
+
+.legend-section {
+  display: flex;
+  flex-direction: column;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.legend-circle {
+  font-size: 20px;
+  color: #2c384e;
+}
+
+.legend-label {
+  font-size: 12px;
+  color: #2c384e;
+  margin-left: 10px;
+}
+
+.opacity-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: relative;
+  height: 60px;
+}
+
+.opacity-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.opacity-label {
+  margin-top: 5px;
+}
+
+.vertical-divider {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  border-left: 1px dotted #2c384e;
+  height: 30px;
+}
