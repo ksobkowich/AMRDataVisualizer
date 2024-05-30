@@ -230,6 +230,12 @@ label {
   white-space: nowrap;
 }
 
+.selectize-control.multi .selectize-input.has-items {
+    padding-left: 7px;
+    padding-right: 7px;
+    overflow: auto;
+}
+
 .table {
     min-width: 100%;
     max-width: 100%;
@@ -328,10 +334,6 @@ label {
   align-items: center;
 }
 
-.opacity-label {
-  margin-top: 5px;
-}
-
 .vertical-divider {
   position: absolute;
   left: 50%;
@@ -339,4 +341,49 @@ label {
   transform: translate(-50%, -50%);
   border-left: 1px dotted #2c384e;
   height: 30px;
+}
+
+.legendColorBlock {
+  font-size: 15px; 
+  margin-left: 5px;
+}
+
+.btn-group>.btn-group:first-child:not(:last-child)>.btn:last-child {
+    border-radius: 100px 0px 0px 100px;
+}
+
+.btn-group>.btn-group:last-child:not(:first-child)>.btn:first-child {
+    border-radius: 0px 100px 100px 0px;
+}
+
+.irs--shiny .irs-from, .irs--shiny .irs-to, .irs--shiny .irs-single {
+    color: #333333;
+    text-shadow: none;
+    padding: 1px 3px;
+    background-color: transparent;
+    border-radius: 3px;
+    font-size: 12px;
+    line-height: 1.333;
+    font-family: 'Carme';
+    font-weight: bolder;
+}
+
+.irs--shiny .irs-bar {
+    top: 25px;
+    height: 8px;
+    border-top: 1px solid #44CDC4;
+    border-bottom: 1px solid #44CDC4;
+    background: #44CDC4;
+    cursor: s-resize;
+    z-index: 2;
+}
+
+.irs--shiny .irs-min, .irs--shiny .irs-max {
+    top: 0;
+    padding: 1px 3px;
+    text-shadow: none;
+    background-color: transparent;
+    border-radius: 3px;
+    font-size: 0px;
+    line-height: 1.333;
 }

@@ -42,9 +42,9 @@ dashboardPage(
       
       tabItem("abTab", uiOutput("antibiogramUI")),
       
-      tabItem("mapTab", mapPageUI("map")),
+      tabItem("mapTab", uiOutput("mapUI")),
       
-      tabItem("trendsTab", tsPageUI("ts")),
+      tabItem("trendsTab", uiOutput("tsUI")),
       
       tabItem("pathogenTab", pathogenPageUI("pathogen")),
       

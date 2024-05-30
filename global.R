@@ -31,6 +31,7 @@ source("./Modules/importDataModule.R")
 
 source("./Functions/dataCleaningFunction.R")
 source("./Functions/columnDetectFunctions.R")
+source("./Functions/regionMatching.R")
 
 # Increase maximum data size ----------------------------------------------
 

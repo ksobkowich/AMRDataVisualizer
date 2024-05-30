@@ -3,28 +3,19 @@ abPageUI <- function(id, data) {
   tagList(
     fluidRow(
       
-
-# Main Content ------------------------------------------------------------
-
+      
+      # Main Content ------------------------------------------------------------
+      
       column(9,
-             
-             wellPanel(style = "overflow-x: scroll; overflow-y: scroll; max-height: 80vh;",
-                   div(style = "min-width: 1150px; min-height: 750px",
-                       plotlyOutput(ns("antibiogramPlot"), height = "700px", width = "100%")
-                       ),
-               class = "contentWell"
-             )
-             
+             uiOutput(ns("content"))
       ),
       
-
-# Filters -----------------------------------------------------------------
-
+      # Filters -----------------------------------------------------------------
+      
       column(3,
              
              wellPanel(
                h4("Filters", style = "text-align: center;"),
-               hr(),
                selectizeInput(ns("speciesFilter"), "Species", 
                               choices = c(sort(unique(data$Species), na.last = TRUE)),
                               multiple = TRUE),
@@ -35,21 +26,21 @@ abPageUI <- function(id, data) {
                               min = min(data$Date), max = max(data$Date), 
                               start = min(data$Date), end = max(data$Date)),
                div(
-                   actionButton(ns("last3Months"), "3 mo", class = "quickDateButton"),
-                   actionButton(ns("last6Months"), "6 mo", class = "quickDateButton"),
-                   actionButton(ns("pastYear"), "1 yr", class = "quickDateButton"),
-                   actionButton(ns("yearToDate"), "YTD", class = "quickDateButton"),
-                   actionButton(ns("allData"), "All", class = "quickDateButton"),
-                   class = "quickDateButtonDiv"
+                 actionButton(ns("last3Months"), "3 mo", class = "quickDateButton"),
+                 actionButton(ns("last6Months"), "6 mo", class = "quickDateButton"),
+                 actionButton(ns("pastYear"), "1 yr", class = "quickDateButton"),
+                 actionButton(ns("yearToDate"), "YTD", class = "quickDateButton"),
+                 actionButton(ns("allData"), "All", class = "quickDateButton"),
+                 class = "quickDateButtonDiv"
                ),
                actionButton(ns("applyFilter"), "Apply", class = "submitButton"),
                class = "contentWell",
                height = "35vh"
              ),
              
-
-# Legend ------------------------------------------------------------------
-
+             
+             # Legend ------------------------------------------------------------------
+             
              wellPanel(
                h4("Legend", class = "legend-title"),
                h5("Size", class = "legend-section"),
@@ -83,7 +74,7 @@ abPageUI <- function(id, data) {
                  div(
                    class = "opacity-item",
                    tags$i(class = "fas fa-circle legend-circle"),
-                   span("30+ Samples", class = "opacity-label")
+                   span("30+ Samples", class = "legend-label")
                  )
                ),
                h6("Bubbles are colored by antimicrobial class."),
@@ -143,9 +134,6 @@ abPageServer <- function(id, data) {
       if (length(input$sourceFilter) > 0) {
         tempData <- tempData[tempData$Source %in% input$sourceFilter, ]
       }
-      if (length(input$resistanceFilter) > 0) {
-        tempData <- tempData[tempData$Antimicrobial %in% input$resistanceFilter, ]
-      }
       if (!is.null(input$timeFilter)) {
         tempData <- tempData[tempData$Date >= input$timeFilter[1] & tempData$Date <= input$timeFilter[2], ]
       }
@@ -158,6 +146,27 @@ abPageServer <- function(id, data) {
         filteredData()
       } else {
         initialData()
+      }
+    })
+    
+    output$content <- renderUI({
+      req(plotData())
+      if (!is.null(plotData()) && nrow(plotData()) > 0) {
+        wellPanel(style = "overflow-x: scroll; overflow-y: scroll; max-height: 80vh;",
+                  div(style = "min-width: 1150px; min-height: 750px",
+                      plotlyOutput(ns("antibiogramPlot"), height = "700px")
+                  ),
+                  class = "contentWell"
+        )
+      } else {
+        wellPanel(
+          style = "display: flex; align-items: center; justify-content: center; max-height: 80vh;",
+          div(
+            style = "min-width: 1150px; min-height: 750px; display: flex; align-items: center; justify-content: center;",
+            uiOutput(ns("errorHandling"))
+          ),
+          class = "contentWell"
+        )
       }
     })
     
@@ -217,6 +226,14 @@ abPageServer <- function(id, data) {
       ggplotly(g, tooltip = c("text")) %>% 
         config(displayModeBar = FALSE)
       
+    })
+    
+    output$errorHandling <- renderUI({
+      div(style = "display: flex; align-items: center; justify-content: center; height: 100%; flex-direction: column; text-align: center;",
+          icon("disease", style = "font-size:100px; color: #44CDC4"),
+          h4("Oops... looks like there isn't enough data for this plot."),
+          h6("Try reducing the number of filters applied or adjust your data in the 'Import' tab.")
+      )
     })
     
   })

@@ -33,6 +33,21 @@ server <- function(input, output, session) {
     }
   })
   
+  observeEvent(input$info, {
+    showModal(modalDialog(
+      title = div(
+        style = "text-align: center;",
+        tags$img(src = "logoDark.png", height = "100px", style = "vertical-align: middle;")
+      ),
+      h4("How to use this app"),
+      
+      HTML('<iframe width="100%" height = "300" src="https://www.youtube.com/embed/pd7jODRf4os" frameborder="0" allowfullscreen></iframe>'),
+      easyClose = T
+    ))
+  })
+  
+  
+  
 
 # Overview Page -----------------------------------------------------------
   observe({
@@ -40,6 +55,8 @@ server <- function(input, output, session) {
     ovPageServer("overviewModule", clean())
   })
   
+
+# Antibiogram Page --------------------------------------------------------
   output$antibiogramUI <- renderUI({
     req(clean())
     abPageUI("antibiogramModule", clean())
@@ -49,5 +66,30 @@ server <- function(input, output, session) {
     req(clean())
     abPageServer("antibiogramModule", clean())
   })
+  
+# Map Page ----------------------------------------------------------------
+  output$mapUI <- renderUI({
+    req(clean())
+    mapPageUI("mapModule", clean())
+  })
+  
+  observe({
+    req(clean())
+    mapPageServer("mapModule", clean())
+  })
+  
+
+# Time Series Page --------------------------------------------------------
+  output$tsUI <- renderUI({
+    req(clean())
+    tsPageUI("tsModule", clean())
+  })
+  
+  observe({
+    req(clean())
+    tsPageServer("tsModule", clean())
+  })
+  
+
 # Close server ------------------------------------------------------------
 }
