@@ -48,6 +48,11 @@ importDataServer <- function(id) {
         } else if (input$dataSelect != "Select a dataset") {
           dataName <- input$dataSelect
           upload$content <- read.csv(paste("./Data/", dataName, sep = ""))
+          
+          # Get latest NARMS data automatically
+          # download.file("https://www.fda.gov/media/132928/download?attachment", "FDA_data.xlsx", mode = "wb")
+          # data <- read_excel("FDA_data.xlsx")
+          
         } else {
           showModal(modalDialog(
             title = "Error",
@@ -185,7 +190,7 @@ importDataServer <- function(id) {
       if (is.null(upload$content)) {
         wellPanel(
           icon("file-import", class = "uploadIcon"),
-          h3("Ready to get started?"),
+          h3(typed("Ready to get started?", typeSpeed = 20)),
           hr(),
           fileInput(ns("fileUploader"), "Upload your own data", accept = c(".csv", ".parquet")),
           actionButton(ns("resetUploader"), "Reset file upload", icon("rotate-left"), class = "resetButton"),
@@ -233,8 +238,7 @@ importDataServer <- function(id) {
             h4("Preview of Cleaned Data"),
             wellPanel(
               div(
-                DTOutput(ns("cleanedDataPreview")),
-                class = "dcleanDataPreview"
+                DTOutput(ns("cleanedDataPreview"))
               ),
               class = "dataPreviewWell"
             )

@@ -49,6 +49,10 @@ label {
     height: 60px;
 }
 
+.main-sidebar {
+    position: fixed;
+}
+
 .skin-blue .left-side, .skin-blue .main-sidebar, .skin-blue .wrapper {
     background-color: #34435a;
     color: #a7b6d4;
@@ -274,7 +278,8 @@ label {
     min-width: 35px;
     margin: 1px;
     border-radius: 10px;
-    padding: 3px 6x;
+    padding: 3px 4x;
+    font-size: 9px;
 }
 
 .quickDateButtonDiv{
@@ -306,7 +311,7 @@ label {
 .legend-item {
   display: flex;
   align-items: center;
-  margin-bottom: 10px;
+  margin-bottom: 1px;
 }
 
 .legend-circle {
@@ -316,7 +321,7 @@ label {
 
 .legend-label {
   font-size: 12px;
-  color: #2c384e;
+  color: #555555;
   margin-left: 10px;
 }
 
@@ -386,4 +391,20 @@ label {
     border-radius: 3px;
     font-size: 0px;
     line-height: 1.333;
+}
+
+.exploreFiltersWell{
+  background-color: white;
+  border-color: #44CDC4;
+  text-align: center;
+  border-radius: 10px;
+  margin: auto;
+  max-height: auto;
+  max-width: 480px;
+  margin-top: 10px;
+}
+
+.checkbox-primary input[type="checkbox"]:checked+label::before, .checkbox-primary input[type="radio"]:checked+label::before {
+    background-color: #44CDC4;
+    border-color: #44CDC4;
 }

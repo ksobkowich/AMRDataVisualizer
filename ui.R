@@ -50,7 +50,7 @@ dashboardPage(
       
       tabItem("mdrTab", mdrPageUI("mdrn")),
       
-      tabItem("exploreTab", explorePageUI("ex"))
+      tabItem("exploreTab", uiOutput("exploreUI"))
       
     )
   )

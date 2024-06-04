@@ -1,8 +1,6 @@
 homePageUI <- function(id) {
   ns <- NS(id)
   tagList(
-  
-    h5("Hello, Welcome!")
     
   )
     

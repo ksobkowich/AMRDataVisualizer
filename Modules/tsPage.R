@@ -1,6 +1,11 @@
 library(tidyverse)
 library(lubridate)
 library(plotly)
+library(zoo)
+
+
+# To-do -------------------------------------------------------------------
+# - Confidence bands?
 
 tsPageUI <- function(id, data) {
   ns <- NS(id)
@@ -200,14 +205,14 @@ tsPageServer <- function(id, data) {
     tsData$Date <- as.Date(tsData$Date)
     
     roll_forward <- function(df) {
-      new_df <- df[1,]  # Start with the first row
-      new_df$Count <- 0  # Initialize count to zero
-      new_df$Susceptible <- 0  # Initialize susceptible to zero
+      new_df <- df[1,]
+      new_df$Count <- 0
+      new_df$Susceptible <- 0
       
       for (i in 1:nrow(df)) {
         new_df$Susceptible[nrow(new_df)] <- new_df$Susceptible[nrow(new_df)] + df$Susceptible[i]
         new_df$Count[nrow(new_df)] <- new_df$Count[nrow(new_df)] + df$Count[i]
-        new_df$Date[nrow(new_df)] <- df$Date[i]  # Update to the most recent date in the loop
+        new_df$Date[nrow(new_df)] <- df$Date[i]
         
         if (new_df$Count[nrow(new_df)] >= 30) {
           if (i < nrow(df)) {
@@ -227,12 +232,15 @@ tsPageServer <- function(id, data) {
       mutate(propS = Susceptible / Count) %>% 
       filter(Count >= 30)
     
+
+# Rolling Mean Plot -------------------------------------------------------
+
     if(input$tsType == "Rolling Mean"){
       
       tsDataRM <- tsData %>%
         group_by(Class) %>%
         arrange(Date) %>%
-        mutate(ma_propS = zoo::rollmean(propS, k = input$rmWindow, fill = NA, align = "right"))
+        mutate(ma_propS = rollmean(propS, k = input$rmWindow, fill = NA, align = "right"))
       
       numColors <- length(unique(tsDataRM$Class))
       
@@ -243,7 +251,11 @@ tsPageServer <- function(id, data) {
       
       colorPalette = gg_color_hue(numColors)
       
-      plot_ly(tsDataRM, x = ~Date, y = ~ma_propS, type = 'scatter', mode = 'lines+markers',
+      plot_ly(tsDataRM, 
+              x = ~Date, 
+              y = ~ma_propS, 
+              type = 'scatter', 
+              mode = 'lines+markers',
               color = ~Class, colors = colorPalette,
               text = ~paste("Class:", Class, "<br>Isolates tested:", Count, "<br>% Susceptible:", round(ma_propS, 3)*100, "<br>Date:", Date),
               hoverinfo = "text") %>%
@@ -252,6 +264,9 @@ tsPageServer <- function(id, data) {
                yaxis = list(title = "% Susceptible", range = c(0, 1))) %>% 
         config(displayModeBar = FALSE)
       
+
+# LOWESS Plot -------------------------------------------------------------
+
     } else if (input$tsType == "LOWESS"){
       apply_lowess <- function(df, x, y, f = input$lowessSpan) {
         lowess_result <- stats::lowess(df[[x]], df[[y]], f = f)
@@ -278,7 +293,11 @@ tsPageServer <- function(id, data) {
       
       colorPalette = gg_color_hue(numColors)
       
-      plot_ly(tsDataLowess, x = ~Date, y = ~low_propS, type = 'scatter', mode = 'lines+markers',
+      plot_ly(tsDataLowess,
+              x = ~Date, 
+              y = ~low_propS, 
+              type = 'scatter', 
+              mode = 'lines+markers',
               color = ~Class, colors = colorPalette,
               text = ~paste("Class:", Class, "<br>Isolates tested:", Count, "<br>% Susceptible:", round(low_propS, 3)*100, "<br>Date:", Date),
               hoverinfo = "text") %>%
@@ -287,6 +306,9 @@ tsPageServer <- function(id, data) {
                yaxis = list(title = "% Susceptible", range = c(0, 1))) %>% 
         config(displayModeBar = FALSE)
       
+
+# Point Plot --------------------------------------------------------------
+
     } else {
     
     numColors <- length(unique(tsData$Class))

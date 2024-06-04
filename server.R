@@ -21,7 +21,7 @@ server <- function(input, output, session) {
       menuItem("Antibiogram", tabName = "abTab", icon = icon("braille", class = "nav-icon")),
       menuItem("Map", tabName = "mapTab", icon = icon("map-location-dot", class = "nav-icon")),
       menuItem("Trends", tabName = "trendsTab", icon = icon("chart-line", class = "nav-icon")),
-      menuItem("Pathogens", tabName = "pathogenTab", icon = icon("bacteria", class = "nav-icon")),
+      menuItem("Pathogen Info", tabName = "pathogenTab", icon = icon("bacteria", class = "nav-icon")),
       menuItem("MDR", tabName = "mdrTab", icon = icon("pills", class = "nav-icon")),
       menuItem("Explore", tabName = "exploreTab", icon = icon("table-list", class = "nav-icon"))
       )
@@ -88,6 +88,19 @@ server <- function(input, output, session) {
   observe({
     req(clean())
     tsPageServer("tsModule", clean())
+  })
+  
+
+# Explore Page ------------------------------------------------------------
+
+  output$exploreUI <- renderUI({
+    req(clean())
+    explorePageUI("exModule", clean())
+  })
+  
+  observe({
+    req(clean())
+    explorePageServer("exModule", clean())
   })
   
 
