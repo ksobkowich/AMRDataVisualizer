@@ -1,4 +1,4 @@
-library(spacyr)
+#library(spacyr)
 
 preprocessMapData <- function(data) {
   uniqueRegions <- unique(data$Region)

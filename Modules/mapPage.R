@@ -1,9 +1,9 @@
-library(leaflet)
-library(sf)
-library(tigris)
-library(stringdist)
-library(colorspace)
-library(HatchedPolygons)
+# library(leaflet)
+# library(sf)
+# library(tigris)
+# library(stringdist)
+# library(colorspace)
+# library(HatchedPolygons)
 
 mapPageUI <- function(id, data) {
   ns <- NS(id)

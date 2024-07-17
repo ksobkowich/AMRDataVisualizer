@@ -31,6 +31,15 @@ dashboardPage(
       )
     )),
     useShinyjs(),
+    extendShinyjs(text = "
+      shinyjs.hideHeader = function() { $('.navbar').hide(); };
+      shinyjs.showHeader = function() { $('.navbar').show(); };
+    ", functions = c("hideHeader", "showHeader")),
+    tags$style(HTML("
+      .navbar {
+        display: none;
+      }
+    ")),
     
     tabItems(
       
@@ -46,9 +55,9 @@ dashboardPage(
       
       tabItem("trendsTab", uiOutput("tsUI")),
       
-      tabItem("pathogenTab", pathogenPageUI("pathogen")),
+      tabItem("pathogenTab", uiOutput("pathogenUI")),
       
-      tabItem("mdrTab", mdrPageUI("mdrn")),
+      tabItem("mdrTab", uiOutput("mdrUI")),
       
       tabItem("exploreTab", uiOutput("exploreUI"))
       

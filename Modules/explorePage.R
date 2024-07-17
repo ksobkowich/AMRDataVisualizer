@@ -1,5 +1,5 @@
-library(shinyBS)
-library(jsonlite)
+# library(shinyBS)
+# library(jsonlite)
 
 explorePageUI <- function(id, data) {
   ns <- NS(id)

@@ -16,7 +16,7 @@ importDataServer <- function(id) {
     formattedData <- reactiveVal(NULL)
     cleanedData <- reactiveVal(NULL)
     selections <- reactiveValues(
-      yearCol = NULL, monthCol = NULL, regionCol = NULL, subregionCol = NULL,
+      idCol = NULL, yearCol = NULL, monthCol = NULL, regionCol = NULL, subregionCol = NULL,
       speciesCol = NULL, sourceCol = NULL, valueType = "SIR", moCol = NULL,
       drugCol = NULL, sirCol = NULL, micSignCol = NULL, micValCol = NULL, selectedBreakpoint = NULL
     )
@@ -125,6 +125,7 @@ importDataServer <- function(id) {
     
     observe({
       req(input$sirCol)
+      selections$idCol <- input$idCol
       selections$yearCol <- input$yearCol
       selections$monthCol <- input$monthCol
       selections$regionCol <- input$regionCol
@@ -146,7 +147,7 @@ importDataServer <- function(id) {
         tagList(
           selectizeInput(ns("micSignCol"), "MIC Sign", choices = c("Not Present", names(upload$content)), selected = selections$micSignCol),
           selectizeInput(ns("micValCol"), "MIC Value", choices = c("Not Present", names(upload$content)), selected = selections$micValCol),
-          selectizeInput(ns("selectedBreakpoint"), "Breakpoint", choices = c("Placeholder"), selected = selections$selectedBreakpoint)
+          selectizeInput(ns("selectedBreakpoint"), "Breakpoint", choices = unique(AMR::clinical_breakpoints$guideline), selected = selections$selectedBreakpoint)
         )
       }
     })
@@ -159,6 +160,7 @@ importDataServer <- function(id) {
             column(6,
                    h5("Patient Information"),
                    hr(),
+                   selectizeInput(ns("idCol"), "ID", choices = c("Not Present", names(upload$content)), selected = selections$idCol),
                    selectizeInput(ns("yearCol"), "Year", choices = c("Not Present", names(upload$content)), selected = selections$yearCol),
                    selectizeInput(ns("monthCol"), "Month", choices = c("Not Present", names(upload$content)), selected = selections$monthCol),
                    selectizeInput(ns("regionCol"), "Region", choices = c("Not Present", names(upload$content)), selected = selections$regionCol),
@@ -298,7 +300,7 @@ importDataServer <- function(id) {
     
     observeEvent(upload$content, {
       req(upload$content)
-      
+      selections$idCol <- detectIdColumn(upload$content) %||% "Not Present"
       selections$yearCol <- detectYearColumn(upload$content) %||% "Not Present"
       selections$monthCol <- detectMonthColumn(upload$content) %||% "Not Present"
       selections$regionCol <- detectRegionColumn(upload$content) %||% "Not Present"
@@ -324,6 +326,7 @@ importDataServer <- function(id) {
 
       if(valueType() == "SIR") {
         formattedData(data.frame(
+          ID = safeExtract(selections$idCol),
           Year = safeExtract(selections$yearCol),
           Month = safeExtract(selections$monthCol),
           Region = safeExtract(selections$regionCol),
@@ -336,6 +339,7 @@ importDataServer <- function(id) {
         ))
       } else {
         formattedData(data.frame(
+          ID = safeExtract(selections$idCol),
           Year = safeExtract(selections$yearCol),
           Month = safeExtract(selections$monthCol),
           Region = safeExtract(selections$regionCol),

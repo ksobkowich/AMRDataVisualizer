@@ -1,14 +1,19 @@
-library(parallel)
+# library(foreach)
+# library(doParallel)
 
 dataCleaner <- function(rawData){
   
   numCores <- detectCores() - 1
   
+  cl <- makeCluster(numCores)
+  registerDoParallel(cl)
+  
   chunks <- split(rawData, 1:numCores)
-
+  
   cleanChunk <- function(chunk) {
     chunk %>%
       mutate(
+        ID = as.character(ID),
         Year = as.integer(Year),
         Month = ifelse(is.na(Month), 1, as.integer(Month)),
         Date = as.Date(paste(Year, Month, "01", sep = "-"), format = "%Y-%m-%d"),
@@ -20,7 +25,7 @@ dataCleaner <- function(rawData){
         Antimicrobial = ab_name(Antimicrobial),
         Class = ab_group(Antimicrobial)
       ) %>% 
-      select(Date, Region, Subregion, Species, Source, Microorganism, Antimicrobial, Class, Interpretation) %>% 
+      select(ID, Date, Region, Subregion, Species, Source, Microorganism, Antimicrobial, Class, Interpretation) %>% 
       filter(Interpretation %in% c("S","R","I"))
   }
   

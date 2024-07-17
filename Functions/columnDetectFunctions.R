@@ -8,6 +8,12 @@ detectColumnByName <- function(data, keywords) {
   return(NULL)
 }
 
+# Detect ID Column
+detectIdColumn <- function(data) {
+  keywords <- c("id", "identification", "patient", "number")
+  detectColumnByName(data, keywords)
+}
+
 # Detect Year Column
 detectYearColumn <- function(data) {
   keywords <- c("year", "yr")
