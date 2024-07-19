@@ -41,19 +41,19 @@ library(renv)
 #renv::deactivate()
 
 # Source Files ------------------------------------------------------------
-source("./Modules/homePage.R")
-source("./Modules/ovPage.R")
-source("./Modules/abPage.R")
-source("./modules/mapPage.R")
-source("./modules/tsPage.R")
-source("./Modules/mdrPage.R")
-source("./Modules/pathogenPage.R")
-source("./modules/explorePage.R")
-source("./Modules/importDataModule.R")
+source("Modules/homePage.R")
+source("Modules/ovPage.R")
+source("Modules/abPage.R")
+source("Modules/mapPage.R")
+source("Modules/tsPage.R")
+source("Modules/mdrPage.R")
+source("Modules/pathogenPage.R")
+source("Modules/explorePage.R")
+source("Modules/importDataModule.R")
 
-source("./Functions/dataCleaningFunction.R")
-source("./Functions/columnDetectFunctions.R")
-source("./Functions/regionMatching.R")
+source("Functions/dataCleaningFunction.R")
+source("Functions/columnDetectFunctions.R")
+source("Functions/regionMatching.R")
 
 # Increase maximum data size ----------------------------------------------
 

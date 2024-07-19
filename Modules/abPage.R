@@ -16,6 +16,9 @@ abPageUI <- function(id, data) {
              
              wellPanel(
                h4("Filters", style = "text-align: center;"),
+               selectizeInput(ns("moFilter"), "Microorganism", 
+                              choices = c(sort(unique(data$Microorganism), na.last = TRUE)),
+                              multiple = TRUE),
                selectizeInput(ns("speciesFilter"), "Species", 
                               choices = c(sort(unique(data$Species), na.last = TRUE)),
                               multiple = TRUE),
@@ -128,6 +131,9 @@ abPageServer <- function(id, data) {
     
     filteredData <- eventReactive(input$applyFilter, {
       tempData <- data
+      if (length(input$moFilter) > 0) {
+        tempData <- tempData[tempData$Microorganism %in% input$moFilter, ]
+      }
       if (length(input$speciesFilter) > 0) {
         tempData <- tempData[tempData$Species %in% input$speciesFilter, ]
       }
@@ -175,16 +181,25 @@ abPageServer <- function(id, data) {
       result_table <- plotData() %>%
         filter(Interpretation %in% c("S", "R", "I")) %>%
         mutate(Interpretation = ifelse(Interpretation == "S", 1, 0)) %>%
-        add_count(Microorganism, name = "Frequency") %>%
-        filter(Frequency > min(tail(sort(unique(Frequency)), 15))) %>%
+        group_by(Microorganism) %>%
+        mutate(Frequency = n()) %>%
+        ungroup() %>%
+        {
+          if (n_distinct(.$Microorganism) > 1) {
+            filter(., Frequency > min(tail(sort(unique(.$Frequency)), 15)))
+          } else {
+            .
+          }
+        } %>%
         group_by(Microorganism, Antimicrobial, Class) %>%
         summarise(
           obs = n(),
           prop = round(mean(Interpretation == 1), 3),
           .groups = 'drop'
         ) %>%
-        mutate(size = cut(prop, breaks = c(0,0.7, 0.9, 1), labels = c("s", "m", "l"))) %>%
+        mutate(size = cut(prop, breaks = c(0, 0.7, 0.9, 1), labels = c("s", "m", "l"))) %>%
         arrange(Class, Antimicrobial)
+      
       
       unique_drugs <- distinct(result_table, Antimicrobial, Class, .keep_all = TRUE) %>%
         arrange(Class, Antimicrobial)
