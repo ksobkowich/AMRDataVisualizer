@@ -15,10 +15,23 @@ importDataServer <- function(id) {
     upload <- reactiveValues(content = NULL, file = NULL)
     formattedData <- reactiveVal(NULL)
     cleanedData <- reactiveVal(NULL)
+    verifiedData <- reactiveVal(NULL)
     selections <- reactiveValues(
-      idCol = NULL, yearCol = NULL, monthCol = NULL, regionCol = NULL, subregionCol = NULL,
-      speciesCol = NULL, sourceCol = NULL, valueType = "SIR", moCol = NULL,
-      drugCol = NULL, sirCol = NULL, micSignCol = NULL, micValCol = NULL, selectedBreakpoint = NULL
+      idCol = NULL, 
+      yearCol = NULL, 
+      monthCol = NULL, 
+      regionCol = NULL, 
+      subregionCol = NULL,
+      speciesCol = NULL, 
+      sourceCol = NULL, 
+      valueType = "SIR", 
+      moCol = NULL,
+      drugCol = NULL, 
+      sirCol = NULL, 
+      micSignCol = NULL, 
+      micValCol = NULL, 
+      selectedBreakpoint = NULL,
+      additionalCols = NULL
     )
     displayCleanedData <- reactiveVal(FALSE)
     
@@ -42,9 +55,21 @@ importDataServer <- function(id) {
         if (!is.null(upload$file)) {
           ext <- file_ext(upload$file$name)
           upload$content <- switch(ext,
-                                 "csv" = vroom(upload$file$datapath, delim = ","),
-                                 "parquet" = read_parquet(upload$file$datapath),
-                                 NULL)
+                                   "csv" = vroom(upload$file$datapath, delim = ","),
+                                   "parquet" = {
+                                     parquet_file <- read_parquet(upload$file$datapath)
+                                     metadata <- parquet_metadata(upload$file$datapath)
+                                     # Check if 'verified' key exists and if its value is TRUE
+                                     verified <- metadata$file_meta_data$key_value_metadata[[1]]$value[metadata$file_meta_data$key_value_metadata[[1]]$key == "verified"]
+                                     # Store if data is verified
+                                     if (length(verified) > 0 && verified == "TRUE") {
+                                       verifiedData(TRUE)
+                                     } else {
+                                       verifiedData(FALSE)
+                                     }
+                                     parquet_file  # Use only the data for the content
+                                   },
+                                   NULL)
         } else if (input$dataSelect != "Select a dataset") {
           dataName <- input$dataSelect
           upload$content <- read.csv(paste("./Data/", dataName, sep = ""))
@@ -64,6 +89,7 @@ importDataServer <- function(id) {
       
     })
     
+    
     #Use clear button to clear data and return to import page
     
     observeEvent(input$clear, {
@@ -76,11 +102,7 @@ importDataServer <- function(id) {
       formattedData(NULL)
       cleanedData(NULL)
       displayCleanedData(FALSE)
-    })
-    
-    observeEvent(input$back, {
-      displayCleanedData(FALSE)
-      cleanedData(NULL)
+      verifiedData(FALSE)
     })
     
     #Use reset button to clear data, file path and reset the fileInput
@@ -96,13 +118,16 @@ importDataServer <- function(id) {
       
       showModal(modalDialog(
         title = "Processing Data",
-        h4("Your data is being processed, please wait."),
-        br(),br(),
+        h4("Your data are being processed, please wait."),
+        br(),
+        br(),
         div(
           style = "font-size: 24px; text-align: center; padding-bottom: 75px;",
           "Loading",
           span(class = "dot", "."), span(class = "dot", "."), span(class = "dot", ".")
         ),
+        br(),
+        h5("After your data are processed, you will have the option to download the processed version for future use. If you upload data that have already been processed through the data visualizer, this processing step will automatically be skipped."),
         tags$style(
           HTML("
           @keyframes dot {
@@ -118,7 +143,7 @@ importDataServer <- function(id) {
         footer = NULL
       ))
     
-      cleanedData(dataCleaner(availableData()))
+      cleanedData(dataCleaner(availableData(), additionalCols = selections$additionalCols))
       displayCleanedData(TRUE)
       removeModal()
     })
@@ -140,6 +165,11 @@ importDataServer <- function(id) {
       selections$micValCol <- input$micValCol
     })
     
+    observeEvent(input$additionalCols, {
+      selections$additionalCols <- input$additionalCols
+    })
+    
+    
     output$valueInputs <- renderUI({
       if (selections$valueType == "SIR") {
         selectizeInput(ns("sirCol"), "Interpretations", choices = c("Not Present", names(upload$content)), selected = selections$sirCol)
@@ -156,34 +186,75 @@ importDataServer <- function(id) {
       showModal(modalDialog(
         title = "Data Configuration",
         wellPanel(
-          fluidRow(
-            column(6,
-                   h5("Patient Information"),
-                   hr(),
-                   selectizeInput(ns("idCol"), "ID", choices = c("Not Present", names(upload$content)), selected = selections$idCol),
-                   selectizeInput(ns("yearCol"), "Year", choices = c("Not Present", names(upload$content)), selected = selections$yearCol),
-                   selectizeInput(ns("monthCol"), "Month", choices = c("Not Present", names(upload$content)), selected = selections$monthCol),
-                   selectizeInput(ns("regionCol"), "Region", choices = c("Not Present", names(upload$content)), selected = selections$regionCol),
-                   selectizeInput(ns("subregionCol"), "Subregion", choices = c("Not Present", names(upload$content)), selected = selections$subregionCol),
-                   selectizeInput(ns("speciesCol"), "Species", choices = c("Not Present", names(upload$content)), selected = selections$speciesCol),
-                   selectizeInput(ns("sourceCol"), "Sampling Site", choices = c("Not Present", names(upload$content)), selected = selections$sourceCol)
+          tabsetPanel(
+            # First Tab
+            tabPanel(
+              title = "Main Configuration",
+              fluidRow(
+                column(6,
+                       h5("Patient Information"),
+                       hr(),
+                       selectizeInput(ns("idCol"), "ID", choices = c("Not Present", names(upload$content)), selected = selections$idCol),
+                       selectizeInput(ns("yearCol"), "Year", choices = c("Not Present", names(upload$content)), selected = selections$yearCol),
+                       selectizeInput(ns("monthCol"), "Month", choices = c("Not Present", names(upload$content)), selected = selections$monthCol),
+                       selectizeInput(ns("regionCol"), "Region", choices = c("Not Present", names(upload$content)), selected = selections$regionCol),
+                       selectizeInput(ns("subregionCol"), "Subregion", choices = c("Not Present", names(upload$content)), selected = selections$subregionCol),
+                       selectizeInput(ns("speciesCol"), "Species", choices = c("Not Present", names(upload$content)), selected = selections$speciesCol),
+                       selectizeInput(ns("sourceCol"), "Sampling Site", choices = c("Not Present", names(upload$content)), selected = selections$sourceCol)
+                ),
+                column(6,
+                       h5("Microorganism Information"),
+                       hr(),
+                       radioGroupButtons(ns("valueType"), "Data Format", choices = c("SIR", "MIC"), selected = selections$valueType, justified = TRUE),
+                       selectizeInput(ns("moCol"), "Microorganism", choices = c("Not Present", names(upload$content)), selected = selections$moCol),
+                       selectizeInput(ns("drugCol"), "Antimicrobial", choices = c("Not Present", names(upload$content)), selected = selections$drugCol),
+                       uiOutput(ns("valueInputs"))
+                )
+              ),
+              class = "colAssignWell"
             ),
-            column(6,
-                   h5("Microorganism Information"),
-                   hr(),
-                   radioGroupButtons(ns("valueType"), "Data Format", choices = c("SIR", "MIC"), selected = selections$valueType, justified = TRUE),
-                   selectizeInput(ns("moCol"), "Microorganism", choices = c("Not Present", names(upload$content)), selected = selections$moCol),
-                   selectizeInput(ns("drugCol"), "Antimicrobial", choices = c("Not Present", names(upload$content)), selected = selections$drugCol),
-                   uiOutput(ns("valueInputs"))
+            # Second Tab
+            tabPanel(
+              title = "Additional Columns",
+              br(),
+              uiOutput(ns("additionalColsCheckbox"))
             )
           ),
-          class = "colAssignWell"
+          style = "background-color: white;"
         ),
         size = "m",
         easyClose = TRUE,
         footer = tagList(modalButton("Close"))
       ))
     })
+    
+    output$additionalColsCheckbox <- renderUI({
+      req(availableData())
+      allColumns <- names(upload$content)
+      assignedColumns <- c(
+        selections$drugCol, selections$idCol, selections$micSignCol, selections$micValCol, 
+        selections$moCol, selections$monthCol, selections$regionCol, selections$selectedBreakpoint, 
+        selections$sirCol, selections$sourceCol, selections$speciesCol, selections$subregionCol, 
+        selections$valueType, selections$yearCol
+      )
+      unassignedColumns <- setdiff(allColumns, assignedColumns)
+
+      tagList(
+        h5("Please select any additional columns to include with your data. These columns will be available as custom filters."),
+        h6(em("These columns will not be cleaned or standardized.")),
+        prettyCheckboxGroup(ns("additionalCols"), "", choices = unassignedColumns, selected = selections$additionalCols)
+      )
+    })
+    
+    observe({
+      req(selections$additionalCols)
+      updateCheckboxGroupInput(
+        session, 
+        "additionalCols", 
+        selected = selections$additionalCols
+      )
+    })
+    
     
     #Dynamic UI
     output$importTabUI <- renderUI({
@@ -214,9 +285,8 @@ importDataServer <- function(id) {
         if (displayCleanedData()) {
           tagList(
             actionButton(ns("clear"), "Clear Data", class = "clearButton"),
-            actionButton(ns("back"), "Back", class = "clearButton"),
             br(),
-            h3("Your data is ready for use!", style = "color: #44CDC4"),
+            h3("Your data are ready for use!", style = "color: #44CDC4"),
             h5("Please select a tab from the side menu to explore your AMR data."),
             h5("If you would like to select a new dataset, or adjust your columns, use the buttons above."),
             h6("Summary of data processing steps"),
@@ -243,10 +313,17 @@ importDataServer <- function(id) {
                 DTOutput(ns("cleanedDataPreview"))
               ),
               class = "dataPreviewWell"
-            )
+            ),
+            downloadButton(ns("downloadCleanedData"), "Download Cleaned Data", class = "dataSaveButton")
           )
           
         } else {
+          
+          if(verifiedData()){
+            cleanedData(upload$content)
+            displayCleanedData(TRUE)
+            
+          } else {
           
         tagList(
           actionButton(ns("clear"), "Clear Data", class = "clearButton"),
@@ -281,6 +358,7 @@ importDataServer <- function(id) {
           actionButton(ns("processData"), "Process Data", class = "processButton"),
         )
       }
+        }
       }
     })
 
@@ -316,43 +394,47 @@ importDataServer <- function(id) {
     observe({
       req(valueType(), upload$content)
       
+      # Define a helper function to safely extract columns from the uploaded content
       safeExtract <- function(colName) {
         if(colName %in% names(upload$content) && !is.null(colName) && colName != "Not Present") {
           return(upload$content[[colName]])
         } else {
-          return(rep(NA, nrow(upload$content)))
+          return(rep(NA, nrow(upload$content)))  # Return NA if the column doesn't exist
         }
       }
-
-      if(valueType() == "SIR") {
-        formattedData(data.frame(
-          ID = safeExtract(selections$idCol),
-          Year = safeExtract(selections$yearCol),
-          Month = safeExtract(selections$monthCol),
-          Region = safeExtract(selections$regionCol),
-          Subregion = safeExtract(selections$subregionCol),
-          Species = safeExtract(selections$speciesCol),
-          Source = safeExtract(selections$sourceCol),
-          Microorganism = safeExtract(selections$moCol),
-          Antimicrobial = safeExtract(selections$drugCol),
-          Interpretation = safeExtract(selections$sirCol)
-        ))
-      } else {
-        formattedData(data.frame(
-          ID = safeExtract(selections$idCol),
-          Year = safeExtract(selections$yearCol),
-          Month = safeExtract(selections$monthCol),
-          Region = safeExtract(selections$regionCol),
-          Subregion = safeExtract(selections$subregionCol),
-          Species = safeExtract(selections$speciesCol),
-          Source = safeExtract(selections$sourceCol),
-          Microorganism = safeExtract(selections$moCol),
-          Antimicrobial = safeExtract(selections$drugCol),
-          Sign = safeExtract(selections$micSignCol),
-          Value = safeExtract(selections$micValCol)
-        ))
+      
+      # Start building the data frame based on the valueType (SIR or MIC)
+      formattedDataFrame <- data.frame(
+        ID = safeExtract(selections$idCol),
+        Year = safeExtract(selections$yearCol),
+        Month = safeExtract(selections$monthCol),
+        Region = safeExtract(selections$regionCol),
+        Subregion = safeExtract(selections$subregionCol),
+        Species = safeExtract(selections$speciesCol),
+        Source = safeExtract(selections$sourceCol),
+        Microorganism = safeExtract(selections$moCol),
+        Antimicrobial = safeExtract(selections$drugCol)
+      )
+      
+      # Add the additional columns if selected
+      if (!is.null(selections$additionalCols) && length(selections$additionalCols) > 0) {
+        for (col in selections$additionalCols) {
+          formattedDataFrame[[col]] <- safeExtract(col)  # Add each additional column to the data frame
+        }
       }
+      
+      # Add specific columns based on the valueType
+      if (valueType() == "SIR") {
+        formattedDataFrame$Interpretation <- safeExtract(selections$sirCol)
+      } else {
+        formattedDataFrame$Sign <- safeExtract(selections$micSignCol)
+        formattedDataFrame$Value <- safeExtract(selections$micValCol)
+      }
+      
+      # Update the formattedData with the final data frame
+      formattedData(formattedDataFrame)
     })
+    
     
     availableData <- reactive({
       data <- formattedData()
@@ -420,6 +502,18 @@ importDataServer <- function(id) {
       )
       
     })
+    
+    output$downloadCleanedData <- downloadHandler(
+      filename = function() {
+        paste0(Sys.Date(), "_CleanedAMRVisualizerData.parquet")
+      },
+      content = function(file) {
+        data <- cleanedData()
+        verified <- c("verified" = "TRUE")
+        nanoparquet::write_parquet(data, metadata = verified, file)
+      }
+    )
+    
     
     return(
       data = reactive({ cleanedData() })

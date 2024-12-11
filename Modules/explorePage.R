@@ -65,7 +65,7 @@ explorePageServer <- function(id, data) {
         h4("Summary table filters"),
         hr(),
         div(
-          bsCollapse(id = "exFilters", open = "Microorganism", multiple = T,
+          bsCollapse(id = "exFilters", open = "Microorganism", multiple = F,
                      bsCollapsePanel("Microorganism",
                                      selectizeInput(ns("selectedMO"), label = NULL,
                                                     choices = c(sort(unique(data$Microorganism), na.last = TRUE)),

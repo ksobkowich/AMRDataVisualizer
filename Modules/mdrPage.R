@@ -14,33 +14,7 @@ mdrPageUI <- function(id, data) {
       
       column(3,
              
-             wellPanel(
-               h4("Filters", style = "text-align: center;"),
-               selectizeInput(ns("moFilter"), "Microorganism", 
-                              choices = c(sort(unique(data$Microorganism), na.last = TRUE)),
-                              multiple = TRUE,
-                              selected = names(which.max(table(data$Microorganism)))),
-               selectizeInput(ns("speciesFilter"), "Species", 
-                              choices = c(sort(unique(data$Species), na.last = TRUE)),
-                              multiple = TRUE),
-               selectizeInput(ns("sourceFilter"), "Source", 
-                              choices = c(sort(unique(data$Source), na.last = TRUE)),
-                              multiple = TRUE),
-               dateRangeInput(ns("timeFilter"), "Timeframe", 
-                              min = min(data$Date), max = max(data$Date), 
-                              start = min(data$Date), end = max(data$Date)),
-               div(
-                 actionButton(ns("last3Months"), "3 mo", class = "quickDateButton"),
-                 actionButton(ns("last6Months"), "6 mo", class = "quickDateButton"),
-                 actionButton(ns("pastYear"), "1 yr", class = "quickDateButton"),
-                 actionButton(ns("yearToDate"), "YTD", class = "quickDateButton"),
-                 actionButton(ns("allData"), "All", class = "quickDateButton"),
-                 class = "quickDateButtonDiv"
-               ),
-               actionButton(ns("applyFilter"), "Apply", class = "submitButton"),
-               class = "contentWell",
-               height = "35vh"
-             ),
+             filterPanelUI(ns("filters")),
              
              
              # Legend ------------------------------------------------------------------
@@ -58,7 +32,26 @@ mdrPageUI <- function(id, data) {
              )
              
       )
-    )
+    ),
+    tags$script(HTML(
+      "
+      Shiny.addCustomMessageHandler('savePlot', function(data) {
+        var plotElement = document.getElementById(data.plotId); // Target the plot by id
+        if (plotElement) {
+          // Download image with specified width, height, and scale
+          Plotly.downloadImage(plotElement, {
+            format: 'png', // File format
+            filename: data.filename, // Filename for download
+            width: data.width,  // Custom width
+            height: data.height, // Custom height
+            scale: data.scale // Resolution scaling factor (default is 1, larger values improve quality)
+          });
+        } else {
+          console.error('Plot element not found for id: ' + data.plotId);
+        }
+      });
+      "
+    ))
   )
 }
 
@@ -66,80 +59,29 @@ mdrPageServer <- function(id, data) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
     
-    most_common_mo <- names(which.max(table(data$Microorganism)))
-    
-    observe({
-      updateSelectizeInput(session, ns("moFilter"), selected = most_common_mo)
-    })
-    
-    observeEvent(input$last3Months, {
-      updateDateRangeInput(session, "timeFilter", 
-                           min = min(data$Date), max = max(data$Date), 
-                           start = max(data$Date) %m-% months(3), end = max(data$Date))
-    })
-    
-    observeEvent(input$last6Months, {
-      updateDateRangeInput(session, "timeFilter", 
-                           min = min(data$Date), max = max(data$Date), 
-                           start = max(data$Date) %m-% months(6), end = max(data$Date))
-    })
-    
-    observeEvent(input$pastYear, {
-      updateDateRangeInput(session, "timeFilter", 
-                           min = min(data$Date), max = max(data$Date), 
-                           start = max(data$Date) %m-% years(1), end = max(data$Date))
-    })
-    
-    observeEvent(input$yearToDate, {
-      updateDateRangeInput(session, "timeFilter", 
-                           min = min(data$Date), max = max(data$Date), 
-                           start = make_date(year(max(data$Date)), 1, 1), end = max(data$Date))
-    })
-    
-    observeEvent(input$allData, {
-      updateDateRangeInput(session, "timeFilter",
-                           min = min(data$Date), max = max(data$Date), 
-                           start = min(data$Date), end = max(data$Date))
-    })
+    filteredData <- filterPanelServer("filters", data, 
+                                      default_filters = c("Microorganism", "Species", "Source", "Date"), 
+                                      auto_populate = list(Microorganism = TRUE))
     
     initialData <- reactive({
-      data %>%
-        filter(Microorganism %in% most_common_mo)
-    })
-    
-    filteredData <- eventReactive(input$applyFilter, {
-      tempData <- data
-      if (length(input$moFilter) > 0) {
-        tempData <- tempData[tempData$Microorganism %in% input$moFilter, ]
-      }
-      if (length(input$speciesFilter) > 0) {
-        tempData <- tempData[tempData$Species %in% input$speciesFilter, ]
-      }
-      if (length(input$sourceFilter) > 0) {
-        tempData <- tempData[tempData$Source %in% input$sourceFilter, ]
-      }
-      if (!is.null(input$timeFilter)) {
-        tempData <- tempData[tempData$Date >= input$timeFilter[1] & tempData$Date <= input$timeFilter[2], ]
-      }
-      tempData
+      data
     })
     
     plotData <- reactive({
-      if (input$applyFilter > 0) {
-        filteredData()
-      } else {
-        initialData()
-      }
+      filteredData()
     })
     
     output$content <- renderUI({
       req(plotData())
       if (!is.null(plotData()) && nrow(plotData()) > 0) {
+        tagList(
         wellPanel(style = "overflow-x: scroll; overflow-y: scroll; max-height: 80vh;",
                   div(style = "min-height: 750px",
-                      plotlyOutput(ns("mdr"), height = "75vh")
+                      plotlyOutput(ns("plot"), height = "75vh")
                   ),
                   class = "contentWell"
+        ),
+        actionButton(ns("save_btn"), "Save", class = "plotSaveButton")
         )
       } else {
         wellPanel(
@@ -161,7 +103,7 @@ mdrPageServer <- function(id, data) {
       )
     })
     
-    output$mdr <- renderPlotly({
+    output$plot <- renderPlotly({
       mdrData <- plotData() %>%
         group_by(ID, Microorganism) %>%
         summarise(n_classes = n_distinct(Class[Interpretation %in% c("R", "I")])) %>%
@@ -250,9 +192,34 @@ mdrPageServer <- function(id, data) {
           yaxis = list(title = ""),
           margin = list(l = 10, r = 10, b = 10, t = 10)
         ) %>% 
-        config(displayModeBar = FALSE)
+        config(displaylogo = FALSE,
+               modeBarButtonsToRemove = list(
+                 'sendDataToCloud',
+                 'autoScale2d',
+                 'resetScale2d',
+                 'hoverClosestCartesian',
+                 'hoverCompareCartesian',
+                 'zoom2d', 
+                 'pan2d',
+                 'select2d',
+                 'lasso2d',
+                 'zoomIn2d', 
+                 'zoomOut2d',
+                 'toggleSpikelines'
+               )
+        )
       
       plotly_heatmap
+    })
+    
+    observeEvent(input$save_btn, {
+      session$sendCustomMessage("savePlot", list(
+        plotId = ns("plot"),
+        filename = paste0(Sys.Date(), "AMRVisualizerMDR"),
+        width = 1200,
+        height = 800,
+        scale = 3
+      ))
     })
     
   })

@@ -1,15 +1,8 @@
-# library(leaflet)
-# library(sf)
-# library(tigris)
-# library(stringdist)
-# library(colorspace)
-# library(HatchedPolygons)
-
 mapPageUI <- function(id, data) {
   ns <- NS(id)
+  
   tagList(
     fluidRow(
-      
       
       # Main Content ------------------------------------------------------------
       
@@ -20,39 +13,7 @@ mapPageUI <- function(id, data) {
       # Filters -----------------------------------------------------------------
       
       column(3,
-             
-             wellPanel(
-               h4("Filters", style = "text-align: center;"),
-               selectizeInput(ns("moFilter"), "Microorganism", 
-                              choices = c(sort(unique(data$Microorganism), na.last = TRUE)),
-                              multiple = TRUE,
-                              selected = names(which.max(table(data$Microorganism)))),
-               selectizeInput(ns("abFilter"), "Antimicrobial", 
-                              choices = c(sort(unique(data$Antimicrobial), na.last = TRUE)),
-                              multiple = TRUE,
-                              selected = names(which.max(table(data$Antimicrobial)))),
-               selectizeInput(ns("speciesFilter"), "Species", 
-                              choices = c(sort(unique(data$Species), na.last = TRUE)),
-                              multiple = TRUE),
-               selectizeInput(ns("sourceFilter"), "Source", 
-                              choices = c(sort(unique(data$Source), na.last = TRUE)),
-                              multiple = TRUE),
-               dateRangeInput(ns("timeFilter"), "Timeframe", 
-                              min = min(data$Date), max = max(data$Date), 
-                              start = min(data$Date), end = max(data$Date)),
-               div(
-                 actionButton(ns("last3Months"), "3 mo", class = "quickDateButton"),
-                 actionButton(ns("last6Months"), "6 mo", class = "quickDateButton"),
-                 actionButton(ns("pastYear"), "1 yr", class = "quickDateButton"),
-                 actionButton(ns("yearToDate"), "YTD", class = "quickDateButton"),
-                 actionButton(ns("allData"), "All", class = "quickDateButton"),
-                 class = "quickDateButtonDiv"
-               ),
-               actionButton(ns("applyFilter"), "Apply", class = "submitButton"),
-               class = "contentWell",
-               height = "35vh"
-             ),
-             
+             filterPanelUI(ns("filters")),
              
              # Legend ------------------------------------------------------------------
              
@@ -113,75 +74,16 @@ mapPageServer <- function(id, data) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
     
-    most_common_mo <- names(which.max(table(data$Microorganism)))
-    most_common_ab <- names(which.max(table(data$Antimicrobial)))
-    
-    observe({
-      updateSelectizeInput(session, ns("moFilter"), selected = most_common_mo)
-      updateSelectizeInput(session, ns("abFilter"), selected = most_common_ab)
-    })
-    
-    observeEvent(input$last3Months, {
-      updateDateRangeInput(session, "timeFilter", 
-                           min = min(data$Date), max = max(data$Date), 
-                           start = max(data$Date) %m-% months(3), end = max(data$Date))
-    })
-    
-    observeEvent(input$last6Months, {
-      updateDateRangeInput(session, "timeFilter", 
-                           min = min(data$Date), max = max(data$Date), 
-                           start = max(data$Date) %m-% months(6), end = max(data$Date))
-    })
-    
-    observeEvent(input$pastYear, {
-      updateDateRangeInput(session, "timeFilter", 
-                           min = min(data$Date), max = max(data$Date), 
-                           start = max(data$Date) %m-% years(1), end = max(data$Date))
-    })
-    
-    observeEvent(input$yearToDate, {
-      updateDateRangeInput(session, "timeFilter", 
-                           min = min(data$Date), max = max(data$Date), 
-                           start = make_date(year(max(data$Date)), 1, 1), end = max(data$Date))
-    })
-    
-    observeEvent(input$allData, {
-      updateDateRangeInput(session, "timeFilter",
-                           min = min(data$Date), max = max(data$Date), 
-                           start = min(data$Date), end = max(data$Date))
-    })
+    filteredData <- filterPanelServer("filters", data, 
+                      default_filters = c("Antimicrobial", "Microorganism", "Species", "Source", "Date"), 
+                      auto_populate = list(Antimicrobial = TRUE, Microorganism = TRUE))
     
     initialData <- reactive({
-      data %>%
-        filter(Microorganism %in% most_common_mo, Antimicrobial %in% most_common_ab)
-    })
-    
-    filteredData <- eventReactive(input$applyFilter, {
-      tempData <- data
-      if (length(input$moFilter) > 0) {
-        tempData <- tempData[tempData$Microorganism %in% input$moFilter, ]
-      }
-      if (length(input$abFilter) > 0) {
-        tempData <- tempData[tempData$Antimicrobial %in% input$abFilter, ]
-      }
-      if (length(input$speciesFilter) > 0) {
-        tempData <- tempData[tempData$Species %in% input$speciesFilter, ]
-      }
-      if (length(input$sourceFilter) > 0) {
-        tempData <- tempData[tempData$Source %in% input$sourceFilter, ]
-      }
-      if (!is.null(input$timeFilter)) {
-        tempData <- tempData[tempData$Date >= input$timeFilter[1] & tempData$Date <= input$timeFilter[2], ]
-      }
-      tempData
+      data
     })
     
     plotData <- reactive({
-      if (input$applyFilter > 0) {
-        filteredData()
-      } else {
-        initialData()
-      }
+      filteredData()
     })
     
     output$content <- renderUI({
@@ -189,7 +91,8 @@ mapPageServer <- function(id, data) {
       if (!is.null(plotData()) && nrow(plotData()) > 0) {
         wellPanel(style = "overflow-x: scroll; overflow-y: scroll; max-height: 80vh;",
                   div(style = "min-height: 750px",
-                      leafletOutput(ns("map"), height = "71vh")
+                      leafletOutput(ns("map"), height = "71vh"),
+                      downloadButton(ns("savePlot"), "Save", class = "plotSaveButton")
                   ),
                   class = "contentWell"
         )
@@ -215,7 +118,7 @@ mapPageServer <- function(id, data) {
     
     baseMap <- preprocessMapData(data)
     
-    output$map <- renderLeaflet({
+    map_reactive <- reactive({
       req(baseMap)
       req(plotData())
 
@@ -250,10 +153,10 @@ mapPageServer <- function(id, data) {
         "<h4 style='color: #44CDC4;'><b>", map$Subregion, " County, ", "<span style='color: #34435a;'>", map$Region, "</span></b></h4>",
         "<hr style='border-top: 1px solid #cccccc;'>",
         "<i class='fa fa-bacterium' style='color: #44CDC4; font-size: 20px;'></i> <span style='font-family: Carme;'>: ", 
-        ifelse(length(input$moFilter) > 1, "Multiple selected", paste(input$moFilter, collapse=", ")), "</span>",
+        ifelse(length(unique(plotData()$Microorganism)) > 1, "Multiple selected", paste(unique(plotData()$Microorganism), collapse=", ")), "</span>",
         "<br>", 
         "<i class='fa fa-pills' style='color: #34435a; font-size: 20px;'></i> <span style='font-family: Carme;'>: ", 
-        ifelse(length(input$abFilter) > 1, "Multiple selected", paste(input$abFilter, collapse=", ")), "</span>",
+        ifelse(length(unique(plotData()$Antimicrobial)) > 1, "Multiple selected", paste(unique(plotData()$Antimicrobial), collapse=", ")), "</span>",
         "<br>",
         sapply(1:length(map$propS), function(i) {
           if (is.na(map$propS[i]) || map$Count[i] < 30) {
@@ -273,10 +176,8 @@ mapPageServer <- function(id, data) {
         "<h5><b>Percentage of isolates resistant: </b>", format(round(as.numeric(map$propR * 100), 0)), "%</h5>",
         "</div>"
       )
-      
-      
 
-      leaflet(map) %>%
+     leaflet(map) %>%
         addProviderTiles(providers$CartoDB.Positron) %>% 
         addPolygons(
           data = map1,
@@ -296,6 +197,19 @@ mapPageServer <- function(id, data) {
           popup = popups
         )
     })
+    
+    output$map <- renderLeaflet({
+      map_reactive()
+    })
+    
+    output$savePlot <- downloadHandler(
+      filename = paste(Sys.Date(), "AMRVisualizerMap.png", sep = "_"),
+      content = function(file) {
+        showModal(modalDialog(title = "Preparing your plot for download.", "Please wait, this should only take a few moments.", footer=NULL))
+        on.exit(removeModal())
+        mapshot(map_reactive(), file = file, vwidth = 2000, vheight = 1200)
+      }
+    )
     
   })
 }

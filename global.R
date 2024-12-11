@@ -35,12 +35,15 @@ library(lubridate)
 library(plotly)
 library(zoo)
 library(renv)
+library(mapview)
+library(nanoparquet)
 
-#renv::init()
-#renv::snapshot()
-#renv::deactivate()
+# renv::init()
+# renv::snapshot()
+# renv::deactivate()
 
 # Source Files ------------------------------------------------------------
+#Modules
 source("Modules/homePage.R")
 source("Modules/ovPage.R")
 source("Modules/abPage.R")
@@ -50,11 +53,12 @@ source("Modules/mdrPage.R")
 source("Modules/pathogenPage.R")
 source("Modules/explorePage.R")
 source("Modules/importDataModule.R")
+source("Modules/filterPanelModule.R")
 
+#Functions
 source("Functions/dataCleaningFunction.R")
 source("Functions/columnDetectFunctions.R")
 source("Functions/regionMatching.R")
 
 # Increase maximum data size ----------------------------------------------
-
 options(shiny.maxRequestSize = 1000 * 1024^2)

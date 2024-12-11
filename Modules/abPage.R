@@ -1,3 +1,5 @@
+
+
 abPageUI <- function(id, data) {
   ns <- NS(id)
   tagList(
@@ -14,32 +16,7 @@ abPageUI <- function(id, data) {
       
       column(3,
              
-             wellPanel(
-               h4("Filters", style = "text-align: center;"),
-               selectizeInput(ns("moFilter"), "Microorganism", 
-                              choices = c(sort(unique(data$Microorganism), na.last = TRUE)),
-                              multiple = TRUE),
-               selectizeInput(ns("speciesFilter"), "Species", 
-                              choices = c(sort(unique(data$Species), na.last = TRUE)),
-                              multiple = TRUE),
-               selectizeInput(ns("sourceFilter"), "Source", 
-                              choices = c(sort(unique(data$Source), na.last = TRUE)),
-                              multiple = TRUE),
-               dateRangeInput(ns("timeFilter"), "Timeframe", 
-                              min = min(data$Date), max = max(data$Date), 
-                              start = min(data$Date), end = max(data$Date)),
-               div(
-                 actionButton(ns("last3Months"), "3 mo", class = "quickDateButton"),
-                 actionButton(ns("last6Months"), "6 mo", class = "quickDateButton"),
-                 actionButton(ns("pastYear"), "1 yr", class = "quickDateButton"),
-                 actionButton(ns("yearToDate"), "YTD", class = "quickDateButton"),
-                 actionButton(ns("allData"), "All", class = "quickDateButton"),
-                 class = "quickDateButtonDiv"
-               ),
-               actionButton(ns("applyFilter"), "Apply", class = "submitButton"),
-               class = "contentWell",
-               height = "35vh"
-             ),
+             filterPanelUI(ns("filters")),
              
              
              # Legend ------------------------------------------------------------------
@@ -86,7 +63,26 @@ abPageUI <- function(id, data) {
              )
              
       )
-    )
+    ),
+    tags$script(HTML(
+      "
+      Shiny.addCustomMessageHandler('savePlot', function(data) {
+        var plotElement = document.getElementById(data.plotId); // Target the plot by id
+        if (plotElement) {
+          // Download image with specified width, height, and scale
+          Plotly.downloadImage(plotElement, {
+            format: 'png', // File format
+            filename: data.filename, // Filename for download
+            width: data.width,  // Custom width
+            height: data.height, // Custom height
+            scale: data.scale // Resolution scaling factor (default is 1, larger values improve quality)
+          });
+        } else {
+          console.error('Plot element not found for id: ' + data.plotId);
+        }
+      });
+      "
+    ))
   )
 }
 
@@ -95,74 +91,29 @@ abPageServer <- function(id, data) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
     
+    filteredData <-  filterPanelServer("filters", data, 
+                                          default_filters = c("Microorganism", "Species", "Source", "Date"), 
+                                          auto_populate = list())
+    
     initialData <- reactive({
       data
     })
     
-    observeEvent(input$last3Months, {
-      updateDateRangeInput(session, "timeFilter", 
-                           min = min(data$Date), max = max(data$Date), 
-                           start = max(data$Date) %m-% months(3), end = max(data$Date))
-    })
-    
-    observeEvent(input$last6Months, {
-      updateDateRangeInput(session, "timeFilter", 
-                           min = min(data$Date), max = max(data$Date), 
-                           start = max(data$Date) %m-% months(6), end = max(data$Date))
-    })
-    
-    observeEvent(input$pastYear, {
-      updateDateRangeInput(session, "timeFilter", 
-                           min = min(data$Date), max = max(data$Date), 
-                           start = max(data$Date) %m-% years(1), end = max(data$Date))
-    })
-    
-    observeEvent(input$yearToDate, {
-      updateDateRangeInput(session, "timeFilter", 
-                           min = min(data$Date), max = max(data$Date), 
-                           start = make_date(year(max(data$Date)), 1, 1), end = max(data$Date))
-    })
-    
-    observeEvent(input$allData, {
-      updateDateRangeInput(session, "timeFilter",
-                           min = min(data$Date), max = max(data$Date), 
-                           start = min(data$Date), end = max(data$Date))
-    })
-    
-    filteredData <- eventReactive(input$applyFilter, {
-      tempData <- data
-      if (length(input$moFilter) > 0) {
-        tempData <- tempData[tempData$Microorganism %in% input$moFilter, ]
-      }
-      if (length(input$speciesFilter) > 0) {
-        tempData <- tempData[tempData$Species %in% input$speciesFilter, ]
-      }
-      if (length(input$sourceFilter) > 0) {
-        tempData <- tempData[tempData$Source %in% input$sourceFilter, ]
-      }
-      if (!is.null(input$timeFilter)) {
-        tempData <- tempData[tempData$Date >= input$timeFilter[1] & tempData$Date <= input$timeFilter[2], ]
-      }
-      tempData
-    })
-    
-    #Load plot initially with all data then only reload when "Apply" is clicked.
     plotData <- reactive({
-      if (input$applyFilter > 0) {
         filteredData()
-      } else {
-        initialData()
-      }
-    })
+      })
     
     output$content <- renderUI({
       req(plotData())
       if (!is.null(plotData()) && nrow(plotData()) > 0) {
-        wellPanel(style = "overflow-x: scroll; overflow-y: scroll; max-height: 80vh;",
-                  div(style = "min-width: 1150px; min-height: 750px",
-                      plotlyOutput(ns("antibiogramPlot"), height = "700px")
-                  ),
-                  class = "contentWell"
+        tagList(
+          wellPanel(style = "overflow-x: scroll; overflow-y: scroll; max-height: 80vh;",
+                    div(style = "min-height: 750px",
+                        plotlyOutput(ns("plot"), height = "650px")
+                    ),
+                    class = "contentWell"
+          ),
+          actionButton(ns("save_btn"), "Save", class = "plotSaveButton")
         )
       } else {
         wellPanel(
@@ -176,7 +127,15 @@ abPageServer <- function(id, data) {
       }
     })
     
-    output$antibiogramPlot <- renderPlotly({
+    plot <- reactive({
+      
+      shorten_bacteria_names <- function(names) {
+        str_replace_all(
+          names,
+          pattern = "\\b(\\w)\\w*\\s(\\w+)",
+          replacement = "\\1. \\2"
+        )
+      }
       
       result_table <- plotData() %>%
         filter(Interpretation %in% c("S", "R", "I")) %>%
@@ -197,7 +156,8 @@ abPageServer <- function(id, data) {
           prop = round(mean(Interpretation == 1), 3),
           .groups = 'drop'
         ) %>%
-        mutate(size = cut(prop, breaks = c(0, 0.7, 0.9, 1), labels = c("s", "m", "l"))) %>%
+        mutate(size = cut(prop, breaks = c(0, 0.7, 0.9, 1), labels = c("s", "m", "l")),
+               short_form = shorten_bacteria_names(Microorganism)) %>%
         arrange(Class, Antimicrobial)
       
       
@@ -206,7 +166,7 @@ abPageServer <- function(id, data) {
       
       
       g <- ggplot(result_table, aes(x = interaction(Antimicrobial, Class),
-                                    y = Microorganism,
+                                    y = short_form,
                                     size = size,
                                     colour = Class,
                                     fill = Class,
@@ -229,7 +189,7 @@ abPageServer <- function(id, data) {
         theme(
           legend.position = "none",
           panel.background = element_rect(fill = 'transparent'),
-          plot.background = element_rect(fill = 'transparent', color = NA),
+          plot.background = element_rect(fill = 'white', color = NA),
           panel.grid.major = element_line(color = "grey90"),
           panel.grid.minor = element_blank(),
           legend.background = element_rect(fill = 'transparent'),
@@ -238,9 +198,28 @@ abPageServer <- function(id, data) {
         ) +
         guides(fill = "none")
       
-      ggplotly(g, tooltip = c("text")) %>% 
-        config(displayModeBar = FALSE)
+      plotly_plot <- ggplotly(g, tooltip = c("text")) %>%
+        config(displaylogo = FALSE,
+               modeBarButtonsToRemove = list(
+                 'sendDataToCloud',
+                 'autoScale2d',
+                 'resetScale2d',
+                 'hoverClosestCartesian',
+                 'hoverCompareCartesian',
+                 'zoom2d', 
+                 'pan2d',
+                 'select2d',
+                 'lasso2d',
+                 'zoomIn2d', 
+                 'zoomOut2d',
+                 'toggleSpikelines'
+               )
+        )
       
+    })
+    
+    output$plot <- renderPlotly({
+      plot()
     })
     
     output$errorHandling <- renderUI({
@@ -249,6 +228,16 @@ abPageServer <- function(id, data) {
           h4("Oops... looks like there isn't enough data for this plot."),
           h6("Try reducing the number of filters applied or adjust your data in the 'Import' tab.")
       )
+    })
+    
+    observeEvent(input$save_btn, {
+      session$sendCustomMessage("savePlot", list(
+        plotId = ns("plot"),
+        filename = paste0(Sys.Date(), "AMRVisualizerAntibiogram"),
+        width = 1200,
+        height = 800,
+        scale = 3
+      ))
     })
     
   })

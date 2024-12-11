@@ -533,3 +533,59 @@ h6{
   font-size: 12px;
   margin-top: 5px;
 }
+
+.nav-tabs>li.active>a, .nav-tabs>li.active>a:hover, .nav-tabs>li.active>a:focus {
+    color: white;
+    cursor: default;
+    background-color: #44CDC4;
+    border: 0px;
+    border-radius: 45px;
+}
+
+.nav-tabs>li>a {
+    margin-right: 6px;
+    border-radius: 45px;
+    border-color: #44CDC4;
+    color: #44CDC4;
+    font-size: 12px;
+}
+
+.nav-tabs {
+    border-bottom: 0px;
+}
+.pretty .state label:after, .pretty .state label:before {
+    border-radius: 10px;
+}
+
+.pretty.p-default input:checked~.state label:after {
+    background-color: #44CDC4 !important;
+}
+
+.sweet-alert.alert-size-s {
+    border-radius: 20px;
+}
+
+.alert .confirm {
+  background-color: #44CDC4 !important;
+  color: white !important;
+}
+
+.plotSaveButton{
+  float: right;
+  border-radius: 25px;
+  color: white;
+  background-color: #44CDC4;
+  border-color: white;
+  font-size: 12px;
+  margin-top: 10px;
+}
+
+.dataSaveButton{
+  float: right;
+  border-radius: 25px;
+  color: white;
+  background-color: #44CDC4;
+  border-color: white;
+  font-size: 12px;
+  margin-top: 10px;
+}
