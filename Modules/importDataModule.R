@@ -203,7 +203,7 @@ importDataServer <- function(id) {
             column(4, hr())
           ),
           br(),
-          selectizeInput(ns("dataSelect"), "Browse available data", choices = c("Select a dataset", "NARMS - National Antimicrobial Resistance Monitoring System" = "narms_2020.csv"), selected = NULL),
+          selectizeInput(ns("dataSelect"), "Browse available data", choices = c("Select a dataset", "(Not yet active) NARMS - National Antimicrobial Resistance Monitoring System" = "narms_2020.csv"), selected = NULL),
           class = "uploadWell",
           hr(),
           actionButton(ns("submit"), "Submit", class = "submitButton")

@@ -30,9 +30,9 @@ tsPageUI <- function(id, data) {
                               multiple = TRUE,
                               selected = names(which.max(table(data$Microorganism)))),
                selectizeInput(ns("abFilter"), "Antimicrobial", 
-                              choices = c(sort(unique(data$Class), na.last = TRUE)),
+                              choices = c(sort(unique(data$Antimicrobial), na.last = TRUE)),
                               multiple = TRUE,
-                              selected = names(which.max(table(data$Class)))),
+                              selected = names(which.max(table(data$Antimicrobial)))),
                selectizeInput(ns("speciesFilter"), "Species", 
                               choices = c(sort(unique(data$Species), na.last = TRUE)),
                               multiple = TRUE),
@@ -81,7 +81,7 @@ tsPageServer <- function(id, data) {
     ns <- session$ns
     
     most_common_mo <- names(which.max(table(data$Microorganism)))
-    most_common_ab <- names(which.max(table(data$Class)))
+    most_common_ab <- names(which.max(table(data$Antimicrobial)))
     
     observe({
       updateSelectizeInput(session, ns("moFilter"), selected = most_common_mo)
@@ -120,7 +120,7 @@ tsPageServer <- function(id, data) {
     
     initialData <- reactive({
       data %>%
-        filter(Microorganism %in% most_common_mo, Class %in% most_common_ab)
+        filter(Microorganism %in% most_common_mo, Antimicrobial %in% most_common_ab)
     })
     
     filteredData <- eventReactive(input$applyFilter, {
@@ -129,7 +129,7 @@ tsPageServer <- function(id, data) {
         tempData <- tempData[tempData$Microorganism %in% input$moFilter, ]
       }
       if (length(input$abFilter) > 0) {
-        tempData <- tempData[tempData$Class %in% input$abFilter, ]
+        tempData <- tempData[tempData$Antimicrobial %in% input$abFilter, ]
       }
       if (length(input$speciesFilter) > 0) {
         tempData <- tempData[tempData$Species %in% input$speciesFilter, ]
@@ -191,150 +191,138 @@ tsPageServer <- function(id, data) {
     })
     
     output$ts <- renderPlotly({
-    tsData <- plotData() %>%
-      select(Date, Class, Interpretation) %>%
-      mutate(Interpretation = ifelse(Interpretation == "S", 1, 0)) %>%
-      mutate(Date = as.Date(Date)) %>%
-      group_by(Date, Class) %>%
-      summarize(Susceptible = sum(Interpretation),
-                Count = n(),
-                .groups = "drop") %>%
-      arrange(Class, Date)
-    
-    
-    tsData$Date <- as.Date(tsData$Date)
-    
-    roll_forward <- function(df) {
-      new_df <- df[1,]
-      new_df$Count <- 0
-      new_df$Susceptible <- 0
+      tsData <- plotData() %>%
+        select(Date, Antimicrobial, Interpretation) %>%
+        mutate(Interpretation = ifelse(Interpretation == "S", 1, 0)) %>%
+        mutate(Date = as.Date(Date)) %>%
+        group_by(Date, Antimicrobial) %>%
+        summarize(Susceptible = sum(Interpretation),
+                  Count = n(),
+                  .groups = "drop") %>%
+        arrange(Antimicrobial, Date)
       
-      for (i in 1:nrow(df)) {
-        new_df$Susceptible[nrow(new_df)] <- new_df$Susceptible[nrow(new_df)] + df$Susceptible[i]
-        new_df$Count[nrow(new_df)] <- new_df$Count[nrow(new_df)] + df$Count[i]
-        new_df$Date[nrow(new_df)] <- df$Date[i]
+      tsData$Date <- as.Date(tsData$Date)
+      
+      roll_forward <- function(df) {
+        new_df <- df[1,]
+        new_df$Count <- 0
+        new_df$Susceptible <- 0
         
-        if (new_df$Count[nrow(new_df)] >= 30) {
-          if (i < nrow(df)) {
-            # Start a new row for the next accumulation
-            new_df <- rbind(new_df, df[i+1,])
-            new_df$Count[nrow(new_df)] <- 0
-            new_df$Susceptible[nrow(new_df)] <- 0
+        for (i in 1:nrow(df)) {
+          new_df$Susceptible[nrow(new_df)] <- new_df$Susceptible[nrow(new_df)] + df$Susceptible[i]
+          new_df$Count[nrow(new_df)] <- new_df$Count[nrow(new_df)] + df$Count[i]
+          new_df$Date[nrow(new_df)] <- df$Date[i]
+          
+          if (new_df$Count[nrow(new_df)] >= 30) {
+            if (i < nrow(df)) {
+              new_df <- rbind(new_df, df[i+1,])
+              new_df$Count[nrow(new_df)] <- 0
+              new_df$Susceptible[nrow(new_df)] <- 0
+            }
           }
         }
-      }
-      return(new_df)
-    }
-    
-    tsData <- tsData %>%
-      group_by(Class) %>%
-      group_modify(~ roll_forward(.)) %>% 
-      mutate(propS = Susceptible / Count) %>% 
-      filter(Count >= 30)
-    
-
-# Rolling Mean Plot -------------------------------------------------------
-
-    if(input$tsType == "Rolling Mean"){
-      
-      tsDataRM <- tsData %>%
-        group_by(Class) %>%
-        arrange(Date) %>%
-        mutate(ma_propS = rollmean(propS, k = input$rmWindow, fill = NA, align = "right"))
-      
-      numColors <- length(unique(tsDataRM$Class))
-      
-      gg_color_hue <- function(n) {
-        hues = seq(15, 375, length = n + 1)
-        hcl(h = hues, l = 65, c = 100)[1:n]
+        return(new_df)
       }
       
-      colorPalette = gg_color_hue(numColors)
+      tsData <- tsData %>%
+        group_by(Antimicrobial) %>%
+        group_modify(~ roll_forward(.)) %>% 
+        mutate(propS = (Susceptible / Count) * 100) %>%  # Convert to percentage
+        filter(Count >= 30)
       
-      plot_ly(tsDataRM, 
-              x = ~Date, 
-              y = ~ma_propS, 
-              type = 'scatter', 
-              mode = 'lines+markers',
-              color = ~Class, colors = colorPalette,
-              text = ~paste("Class:", Class, "<br>Isolates tested:", Count, "<br>% Susceptible:", round(ma_propS, 3)*100, "<br>Date:", Date),
-              hoverinfo = "text") %>%
-        layout(title = "",
-               xaxis = list(title = "Date"),
-               yaxis = list(title = "% Susceptible", range = c(0, 1))) %>% 
-        config(displayModeBar = FALSE)
-      
-
-# LOWESS Plot -------------------------------------------------------------
-
-    } else if (input$tsType == "LOWESS"){
-      apply_lowess <- function(df, x, y, f = input$lowessSpan) {
-        lowess_result <- stats::lowess(df[[x]], df[[y]], f = f)
-        df$low_propS <- lowess_result$y
-        return(df)
+      if(input$tsType == "Rolling Mean"){
+        
+        tsDataRM <- tsData %>%
+          group_by(Antimicrobial) %>%
+          arrange(Date) %>%
+          mutate(ma_propS = rollmean(propS, k = input$rmWindow, fill = NA, align = "right"))
+        
+        numColors <- length(unique(tsDataRM$Antimicrobial))
+        
+        gg_color_hue <- function(n) {
+          hues = seq(15, 375, length = n + 1)
+          hcl(h = hues, l = 65, c = 100)[1:n]
+        }
+        
+        colorPalette = gg_color_hue(numColors)
+        
+        plot_ly(tsDataRM, 
+                x = ~Date, 
+                y = ~ma_propS, 
+                type = 'scatter', 
+                mode = 'lines+markers',
+                color = ~Antimicrobial, colors = colorPalette,
+                text = ~paste("Antimicrobial:", Antimicrobial, "<br>Isolates tested:", Count, "<br>% Susceptible:", round(ma_propS, 3), "<br>Date:", Date),
+                hoverinfo = "text") %>%
+          layout(title = "",
+                 xaxis = list(title = "Date"),
+                 yaxis = list(title = "% Susceptible", range = c(0, 100))) %>%  # Adjust range to 0-100%
+          config(displayModeBar = FALSE)
+        
+      } else if (input$tsType == "LOWESS"){
+        apply_lowess <- function(df, x, y, f = input$lowessSpan) {
+          lowess_result <- stats::lowess(df[[x]], df[[y]], f = f)
+          df$low_propS <- lowess_result$y
+          return(df)
+        }
+        
+        tsData_clean <- tsData %>%
+          drop_na(Date, propS)
+        
+        tsDataLowess <- tsData_clean %>%
+          group_by(Antimicrobial) %>%
+          nest() %>%
+          mutate(data = map(data, ~ apply_lowess(.x, "Date", "propS"))) %>%
+          unnest(cols = c(data)) %>%
+          ungroup()
+        
+        numColors <- length(unique(tsDataLowess$Antimicrobial))
+        
+        gg_color_hue <- function(n) {
+          hues = seq(15, 375, length = n + 1)
+          hcl(h = hues, l = 65, c = 100)[1:n]
+        }
+        
+        colorPalette = gg_color_hue(numColors)
+        
+        plot_ly(tsDataLowess,
+                x = ~Date, 
+                y = ~low_propS, 
+                type = 'scatter', 
+                mode = 'lines+markers',
+                color = ~Antimicrobial, colors = colorPalette,
+                text = ~paste("Antimicrobial:", Antimicrobial, "<br>Isolates tested:", Count, "<br>% Susceptible:", round(low_propS, 3), "<br>Date:", Date),
+                hoverinfo = "text") %>%
+          layout(title = "",
+                 xaxis = list(title = "Date"),
+                 yaxis = list(title = "% Susceptible", range = c(0, 100))) %>%  # Adjust range to 0-100%
+          config(displayModeBar = FALSE)
+        
+      } else {
+        
+        numColors <- length(unique(tsData$Antimicrobial))
+        
+        gg_color_hue <- function(n) {
+          hues = seq(15, 375, length = n + 1)
+          hcl(h = hues, l = 65, c = 100)[1:n]
+        }
+        
+        colorPalette = gg_color_hue(numColors)
+        
+        plot_ly(tsData, 
+                x = ~Date, 
+                y = ~propS, 
+                type = 'scatter', 
+                mode = 'lines+markers', 
+                color = ~Antimicrobial, 
+                colors = colorPalette,
+                text = ~paste("Antimicrobial:", Antimicrobial, "<br>Isolates tested:", Count, "<br>% Susceptible:", round(propS,3), "<br>Date:", Date),
+                hoverinfo = "text") %>%
+          layout(title = "",
+                 xaxis = list(title = "Date"),
+                 yaxis = list(title = "% Susceptible", range = c(0, 100))) %>%  # Adjust range to 0-100%
+          config(displayModeBar = FALSE)
       }
-      
-      tsData_clean <- tsData %>%
-        drop_na(Date, propS)
-      
-      tsDataLowess <- tsData_clean %>%
-        group_by(Class) %>%
-        nest() %>%
-        mutate(data = map(data, ~ apply_lowess(.x, "Date", "propS"))) %>%
-        unnest(cols = c(data)) %>%
-        ungroup()
-      
-      numColors <- length(unique(tsDataLowess$Class))
-      
-      gg_color_hue <- function(n) {
-        hues = seq(15, 375, length = n + 1)
-        hcl(h = hues, l = 65, c = 100)[1:n]
-      }
-      
-      colorPalette = gg_color_hue(numColors)
-      
-      plot_ly(tsDataLowess,
-              x = ~Date, 
-              y = ~low_propS, 
-              type = 'scatter', 
-              mode = 'lines+markers',
-              color = ~Class, colors = colorPalette,
-              text = ~paste("Class:", Class, "<br>Isolates tested:", Count, "<br>% Susceptible:", round(low_propS, 3)*100, "<br>Date:", Date),
-              hoverinfo = "text") %>%
-        layout(title = "",
-               xaxis = list(title = "Date"),
-               yaxis = list(title = "% Susceptible", range = c(0, 1))) %>% 
-        config(displayModeBar = FALSE)
-      
-
-# Point Plot --------------------------------------------------------------
-
-    } else {
-    
-    numColors <- length(unique(tsData$Class))
-    
-    gg_color_hue <- function(n) {
-      hues = seq(15, 375, length = n + 1)
-      hcl(h = hues, l = 65, c = 100)[1:n]
-    }
-    
-    colorPalette = gg_color_hue(numColors)
-    
-    
-  plot_ly(tsData, 
-                 x = ~Date, 
-                 y = ~propS, 
-                 type = 'scatter', 
-                 mode = 'lines+markers', 
-                 color = ~Class, 
-                 colors = colorPalette,
-                 text = ~paste("Class:", Class, "<br>Isolates tested:", Count, "<br>% Susceptible:", round(propS,3)*100, "<br>Date:", Date),
-                 hoverinfo = "text") %>%
-      layout(title = "",
-             xaxis = list(title = "Date"),
-             yaxis = list(title = "% Susceptible", range = c(0, 1))) %>% 
-    config(displayModeBar = FALSE)
-    }
     })
     
   })
