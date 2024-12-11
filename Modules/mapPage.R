@@ -89,12 +89,14 @@ mapPageServer <- function(id, data) {
     output$content <- renderUI({
       req(plotData())
       if (!is.null(plotData()) && nrow(plotData()) > 0) {
+        tagList(
         wellPanel(style = "overflow-x: scroll; overflow-y: scroll; max-height: 80vh;",
                   div(style = "min-height: 750px",
-                      leafletOutput(ns("map"), height = "71vh"),
-                      downloadButton(ns("savePlot"), "Save", class = "plotSaveButton")
+                      leafletOutput(ns("map"), height = "71vh")
                   ),
                   class = "contentWell"
+        ),
+        downloadButton(ns("savePlot"), "Save", class = "plotSaveButton", icon = NULL)
         )
       } else {
         wellPanel(
