@@ -589,3 +589,14 @@ h6{
   font-size: 12px;
   margin-top: 10px;
 }
+
+.btn-group > .btn-group > .btn:last-child {
+    border-radius: 100px 0px 0px 100px;
+    width: 150px;
+    font-size: 1.25vmin;
+}
+
+.btn-group > .btn-group > .btn:target {
+    background-color: #44CDC4; /* Change to your desired color */
+    color: white; /* Optional: change text color */
+}

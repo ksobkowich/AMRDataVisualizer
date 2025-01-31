@@ -112,7 +112,8 @@ pathogenPageServer <- function(id, data) {
       plotData <- filteredData()
       
       moBreakdown <- plotData %>%
-        group_by(Microorganism) %>%
+        distinct(Date, ID, Microorganism) %>%
+        group_by(Microorganism) %>% 
         summarize(Count = n()) %>%
         ungroup() %>%
         arrange(desc(Count)) %>%

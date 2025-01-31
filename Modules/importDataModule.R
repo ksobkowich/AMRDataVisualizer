@@ -55,7 +55,11 @@ importDataServer <- function(id) {
         if (!is.null(upload$file)) {
           ext <- file_ext(upload$file$name)
           upload$content <- switch(ext,
-                                   "csv" = vroom(upload$file$datapath, delim = ","),
+                                   "csv" = {
+                                     data <- vroom(upload$file$datapath, delim = ",")
+                                     verifiedData(FALSE)  # Always set CSV as not verified
+                                     data
+                                   },
                                    "parquet" = {
                                      parquet_file <- read_parquet(upload$file$datapath)
                                      metadata <- parquet_metadata(upload$file$datapath)
@@ -67,7 +71,7 @@ importDataServer <- function(id) {
                                      } else {
                                        verifiedData(FALSE)
                                      }
-                                     parquet_file  # Use only the data for the content
+                                     parquet_file
                                    },
                                    NULL)
         } else if (input$dataSelect != "Select a dataset") {

@@ -10,17 +10,21 @@ dataCleaner <- function(rawData, additionalCols = NULL) {
   ab_name_data <- unique(rawData$Antimicrobial) %>%
     data.frame(Antimicrobial = ., ab_name = ab_name(.))  # Create a mapping for ab_name
   
+  ab_class_data <- unique(rawData$Antimicrobial) %>%
+    data.frame(Antimicrobial = ., ab_class = ab_group(.))  # Create a mapping for ab_group
+  
   mo_name_data <- unique(rawData$Microorganism) %>%
     data.frame(Microorganism = ., mo_name = mo_name(.))  # Create a mapping for mo_name
   
-  ab_class_data <- unique(rawData$Antimicrobial) %>%
-    data.frame(Antimicrobial = ., ab_class = ab_group(.))  # Create a mapping for ab_group
+  mo_stain_data <- unique(rawData$Microorganism) %>%
+    data.frame(Microorganism = ., mo_stain = mo_gramstain(.))  # Create a mapping for mo_stain
   
   # Join these precomputed mappings to the rawData
   rawData <- rawData %>%
     left_join(ab_name_data, by = "Antimicrobial") %>%
+    left_join(ab_class_data, by = "Antimicrobial") %>%
     left_join(mo_name_data, by = "Microorganism") %>%
-    left_join(ab_class_data, by = "Antimicrobial")
+    left_join(mo_stain_data, by = "Microorganism")
   
   # Optional additional columns
   if (!is.null(additionalCols)) {
@@ -33,16 +37,17 @@ dataCleaner <- function(rawData, additionalCols = NULL) {
   registerDoParallel(cl)
   
   # Parallel processing with foreach
-  cleanData <- foreach(chunk = split(rawData, cut(seq(nrow(rawData)), numCores, labels = FALSE)), 
+  cleanData <- foreach(chunk = split(rawData, cut(seq(nrow(rawData)), numCores, labels = FALSE)),
                        .combine = bind_rows, .packages = c("dplyr", "stringr", "AMR")) %dopar% {
                          
+                         # Optional additional columns
                          additionalColsData <- if (!is.null(additionalCols)) {
                            chunk %>% select(all_of(additionalCols))
                          } else {
                            NULL
                          }
                          
-                         # Replace microorganism and antimicrobial columns with precomputed values
+                         # Replace antimicrobial and microorganism columns with precomputed values
                          cleanedChunk <- chunk %>%
                            mutate(
                              ID = as.character(ID),
@@ -55,12 +60,13 @@ dataCleaner <- function(rawData, additionalCols = NULL) {
                              Source = str_to_sentence(Source),
                              # Replace antimicrobial and microorganism with precomputed names
                              Microorganism = mo_name,  # Use the precomputed mo_name
+                             Stain = mo_stain,
                              Antimicrobial = ab_name,  # Use the precomputed ab_name
                              Class = ab_class         # Use the precomputed ab_class
                            ) %>%
                            select(
-                             ID, Date, Region, Subregion, Species, Source, 
-                             Microorganism, Antimicrobial, Class, Interpretation
+                             ID, Date, Region, Subregion, Species, Source,
+                             Microorganism, Stain, Antimicrobial, Class, Interpretation
                            )
                          
                          # Bind additional columns if any

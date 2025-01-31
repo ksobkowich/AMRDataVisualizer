@@ -38,9 +38,9 @@ library(renv)
 library(mapview)
 library(nanoparquet)
 
-# renv::init()
+#Use option 2
 # renv::snapshot()
-# renv::deactivate()
+
 
 # Source Files ------------------------------------------------------------
 #Modules

@@ -20,6 +20,7 @@ ovPageUI <- function(id) {
     fluidRow(
       column(6, 
              h4("Antimicrobials"),
+             h6("Number of tests results", style = "margin-top:-10px"),
              wellPanel(
                plotlyOutput(ns("abPlot"), height = "35vh"),
                class = "contentWell"
@@ -27,6 +28,7 @@ ovPageUI <- function(id) {
       ),
       column(6, 
              h4("Microorganisms"),
+             h6("10 most common", style = "margin-top:-10px"),
              wellPanel(
                plotlyOutput(ns("moPlot"), height = "35vh"),
                class = "contentWell"
@@ -43,6 +45,7 @@ ovPageServer <- function(id, data) {
     pal <- c("#44cdc4", "#30908c", "#d4fffe", "#aafffc")
     
     nOverTime <- data %>%
+      distinct(Date, ID, Microorganism, .keep_all = TRUE) %>%
       group_by(Date) %>%
       summarize(Tests = n()) %>%
       mutate(Date = as.Date(Date)) %>%
@@ -70,6 +73,7 @@ ovPageServer <- function(id, data) {
     
     output$speciesPlot <- renderPlot({
       speciesBreakdown <- data %>% 
+        distinct(Date, ID,Microorganism, .keep_all = TRUE) %>%
         group_by(Species) %>% 
         summarize(Count = n()) %>% 
         ungroup
@@ -89,6 +93,7 @@ ovPageServer <- function(id, data) {
     
     output$moPlot <- renderPlotly({
       moBreakdown <- data %>% 
+        distinct(Date, ID, Microorganism, .keep_all = TRUE) %>%
         group_by(Microorganism) %>% 
         summarize(Count = n()) %>% 
         ungroup() %>% 
@@ -123,6 +128,7 @@ ovPageServer <- function(id, data) {
     
     output$abPlot <- renderPlotly({
       abBreakdown <- data %>%
+        distinct(Date, ID, Microorganism, Antimicrobial, .keep_all = TRUE) %>%
         group_by(Antimicrobial, Class) %>%
         summarize(Count = n(), .groups = "drop") %>%
         arrange(-Count) %>%
