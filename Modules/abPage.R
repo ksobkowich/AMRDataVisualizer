@@ -4,17 +4,24 @@ abPageUI <- function(id, data) {
     fluidRow(
       
       
-      # Main Content ------------------------------------------------------------
+# Main Content ------------------------------------------------------------
       
       column(9,
              uiOutput(ns("content"))
       ),
       
-      # Filters -----------------------------------------------------------------
+# Side menus -----------------------------------------------------------------
       
       column(3,
              
+
+# Filters -----------------------------------------------------------------
+
              filterPanelUI(ns("filters")),
+            
+
+# Plot controls -----------------------------------------------------------
+             uiOutput(ns("controls")),
              
              # Legend ------------------------------------------------------------------
              
@@ -22,6 +29,9 @@ abPageUI <- function(id, data) {
              
       )
     ),
+
+
+# Save Plot Logic ---------------------------------------------------------
     tags$script(HTML(
       "
       Shiny.addCustomMessageHandler('savePlot', function(data) {
@@ -41,32 +51,40 @@ abPageUI <- function(id, data) {
       });
       "
     ))
+
   )
 }
-
 
 abPageServer <- function(id, data) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
     
-    filteredData <-  filterPanelServer("filters", data, 
-                                          default_filters = c("Microorganism", "Species", "Source", "Date"), 
-                                          auto_populate = list())
+    filteredData <-  filterPanelServer("filters", 
+                                       data, 
+                                       default_filters = c("Microorganism", "WHO AWaRe Class:", "Species", "Source", "Date"), 
+                                       auto_populate = list())
     
-    initialData <- reactive({
-      data
+    plotData <- reactive({filteredData()})
+    
+    showColors <- reactiveVal(TRUE)
+    abType <- reactiveVal("Classic")
+    lowCounts <- reactiveVal("Include")
+    yVar <- reactiveVal("Microorganism")
+    
+    observeEvent(input$applyControl, {
+      showColors(input$abColors)
+      abType(input$abType)
+      lowCounts(input$handleLowCount)
+      yVar(input$yVar)
     })
     
-    plotData <- reactive({
-        filteredData()
-      })
     
-
-# Legend Well -------------------------------------------------------------
-    
+# Render Legend -----------------------------------------------------------
     output$legend <- renderUI({
-      req(input$abType)
-      if(input$abType == 1 | is.null(input$abType)){
+
+      if(abType() == "Visual"){
+
+# Visual Legend -----------------------------------------------------------
       wellPanel(
         h4("Legend", class = "legend-title"),
         h5("Size", class = "legend-section"),
@@ -104,44 +122,93 @@ abPageServer <- function(id, data) {
           )
         ),
         h6("Bubbles are colored by antimicrobial class."),
-        h6("Hover over a bubble for more details"),
+        h6("Hover over a bubble for more details."),
         class = "legendWell"
       )
+
+# Classic Legend ----------------------------------------------------------
       } else {
-        wellPanel(class = "legendWell")
+        
+        wellPanel(        
+          h4("Legend", class = "legend-title"),
+          h5("Color", class = "legend-section"),
+          div(
+            class = "legend-section",
+            div(
+              class = "legend-item",
+              tags$i(icon("square"), style = "font-size: 20px; margin-left: 5px; color: grey;"),
+              span("Too few observations", class = "legend-label", style = "margin-left: 15px;")
+            ),
+            div(
+              class = "legend-item",
+              tags$i(class = "fas fa-solid fa-square", style = "font-size: 20px; margin-left: 5px; color: #D73027;"),
+              span("Low susceptibility (<70%)", class = "legend-label", style = "margin-left: 15px;")
+            ),
+            div(
+              class = "legend-item",
+              tags$i(class = "fas fa-solid fa-square", style = "font-size: 20px; margin-left: 5px; color: #FEE08B;"),
+              span("Moderate susceptibility (70 - 90%)", class = "legend-label", style = "margin-left: 15px;")
+            ),
+            div(
+              class = "legend-item",
+              tags$i(class = "fas fa-solid fa-square", style = "font-size: 20px; margin-left: 5px; color: #44CDC4;"),
+              span("High susceptibility (>90%)", class = "legend-label", style = "margin-left: 15px;")
+            )
+          ),
+          h6("Vertical divisions represent antimicrobial class."),
+          h6("Horizontal divisions represent microorganism gram stain."),
+          h6("Hover over a cell for more details."),
+          class = "legendWell")
       }
-    })
-    
-# Content Well ------------------------------------------------------------
-    
-    abTypeSelected <- reactiveVal(1)
-    
-    observeEvent(input$abType, {
-      abTypeSelected(input$abType) 
-    })
-    
-    output$content <- renderUI({
-      req(plotData())
       
-      if (!is.null(plotData()) && nrow(plotData()) > 0) {
+    })
+    
+
+# Render Controls ---------------------------------------------------------
+    output$controls <- renderUI({
+      tagList(
+        wellPanel(
+          div(
+            style = "display: flex; justify-content: center; align-items: center; position: relative;",
+            h4("Controls", style = "text-align: center; margin: 0;")
+          ),
+          selectizeInput(ns("yVar"), "Y-axis variable", selected = "Microorganism", choices = c("Microorganism", "Source")),
+          radioGroupButtons(ns("abType"), label = "Antibiogram style:", selected = "Classic", choices = c("Classic", "Visual")),
+          radioGroupButtons(ns("handleLowCount"), label = "Handle low-count (<30) results", selected = "Include", choices = c("Include", "Exclude")),
+          
+          conditionalPanel(
+            condition = sprintf("input['%s'] == 'Classic'", ns("abType")), 
+            materialSwitch(ns("abColors"), label = "Show colors?", value = TRUE)
+          ),
+          
+          actionButton(ns("applyControl"), "Apply", class = "submitButton"),
+          class = "contentWell",
+          height = "10vh"
+        )
+      )
+    })
+    
+
+# Render Content -------------------------------------------------------------
+    output$content <- renderUI({
+      data <- req(plotData())
+      
+      if (nrow(data) > 0) {
+
+# Show Plot ---------------------------------------------------------------
         tagList(
           wellPanel(
             style = "overflow-x: scroll; overflow-y: scroll; max-height: 80vh;",
-            div(style = "height: 100%;",
-                plotlyOutput(ns("plot"), height = "80vh")
+            div(
+              style = paste0("min-width: 900px;"),
+              withSpinner(plotlyOutput(ns("plot"), height = "750px"), type = 4, color = "#44CDC4")
             ),
             class = "contentWell"
           ),
-          div(
-            fluidRow(
-              column(9, radioGroupButtons(ns("abType"), "Antibiogram Type:",
-                                          choices = c("Visual" = 1, "Classic" = 2),
-                                          selected = abTypeSelected()  # Use the reactive value here
-              )),
-              column(3, actionButton(ns("save_btn"), "Save", class = "plotSaveButton"))
-            )
-          )
+          actionButton(ns("save_btn"), "Save", class = "plotSaveButton")
         )
+
+# Show Error Handling -----------------------------------------------------
       } else {
         wellPanel(
           style = "display: flex; align-items: center; justify-content: center; max-height: 80vh;",
@@ -154,129 +221,117 @@ abPageServer <- function(id, data) {
       }
     })
     
-    
+
+# Define Error Handling ---------------------------------------------------
+
+    output$errorHandling <- renderUI({
+      div(style = "display: flex; align-items: center; justify-content: center; height: 100%; flex-direction: column; text-align: center;",
+          icon("disease", style = "font-size:100px; color: #44CDC4"),
+          h4("Oops... looks like there isn't enough data for this plot."),
+          h6("Try reducing the number of filters applied or adjust your data in the 'Import' tab.")
+      )
+    })    
+
+# Define Plot -------------------------------------------------------------
     plot <- reactive({
+
       shorten_bacteria_names <- function(names) {
-        str_replace_all(
+        str_replace(
           names,
           pattern = "\\b(\\w)\\w*\\s(\\w+)",
           replacement = "\\1. \\2"
         )
       }
       
+      yVar <- yVar()
+      
       result_table <- plotData() %>%
         filter(Interpretation %in% c("S", "R", "I")) %>%
         mutate(Interpretation = ifelse(Interpretation == "S", 1, 0)) %>%
-        group_by(Microorganism) %>%
+        group_by(!!sym(yVar)) %>%
         mutate(Frequency = n()) %>%
         ungroup() %>%
         {
-          if (n_distinct(.$Microorganism) > 1) {
-            filter(., Frequency >= min(tail(sort(unique(.$Frequency)), 15)))
+          if (n_distinct(.[[yVar]]) > 1) {
+            filter(., Frequency > min(tail(sort(unique(.$Frequency)), 15)))
           } else {
             .
           }
         } %>%
-        group_by(Microorganism, Stain, Antimicrobial, Class) %>%
+        group_by(!!sym(yVar), Antimicrobial, Class) %>%
         summarise(
           obs = n(),
           prop = round(mean(Interpretation == 1), 3),
           .groups = 'drop'
         ) %>%
-        mutate(size = cut(prop, breaks = c(-0.1, 0.7, 0.9, 1), labels = c("s", "m", "l")),
-               short_form = shorten_bacteria_names(Microorganism)) %>%
-        arrange(Class, Antimicrobial)
-      
-      vDividers <- result_table %>% 
-        select(Class, Antimicrobial) %>% 
-        distinct() %>% 
-        group_by(Class) %>% 
-        summarise(Count = n()) %>% 
-        mutate(vDividers = cumsum(Count) + 0.5)
+        mutate(size = cut(prop, breaks = c(0, 0.7, 0.9, 1), labels = c("s", "m", "l")))
       
       result_table <- result_table %>% 
-        left_join(vDividers, by = "Class")
+        { 
+          if (yVar == "Microorganism") {
+            mutate(result_table, short_form = shorten_bacteria_names(.[[yVar]]))
+          } else {
+            mutate(result_table, short_form = ifelse(str_length(.[[yVar]]) > 15, 
+                                             str_c(str_sub(.[[yVar]], 1, 15), "..."), 
+                                             .[[yVar]]))
+          }
+        }%>% 
+        arrange(Class, Antimicrobial)
       
-      if(input$abType == 1){
+      uniqueDrugs <- result_table %>%
+        distinct(Antimicrobial, Class, .keep_all = TRUE) %>%
+        arrange(Class, Antimicrobial) %>%
+        mutate(Antimicrobial = as.ab(Antimicrobial)) %>% 
+        pull(Antimicrobial)
+      
+# Visual AB ---------------------------------------------------------------
+      if(abType() == "Visual"){
         
-        g <- ggplot(result_table, 
-                    aes(x = interaction(Antimicrobial, Class),
-                        y = short_form,
-                        size = size,
-                        colour = Class,
-                        fill = Class,
-                        text = paste("Microorganism:", Microorganism,
-                                     "<br>Antimicrobial:", Antimicrobial,
-                                     "<br>Class:", Class,
-                                     "<br>% Susceptible:", round(prop * 100, 2),
-                                     "<br>Isolates tested:", obs)
-                    )
+        if(lowCounts() == "Exclude") {
+          result_table <- result_table %>% 
+            filter(obs >= 30) %>% 
+            mutate(alpha = 1)
+          
+        } else {
+          
+          result_table <- result_table %>% 
+            mutate(alpha = ifelse(obs > 30, 1, obs / 30))
+          
+        }
+
+      g <- ggplot(result_table, aes(x = interaction(Antimicrobial, Class),
+                                    y = short_form,
+                                    size = size,
+                                    colour = Class,
+                                    fill = Class,
+                                    text = paste(yVar, !!sym(yVar),
+                                                 "<br>Antimicrobial:", Antimicrobial,
+                                                 "<br>Class:", Class,
+                                                 "<br>% Susceptible:", round(prop * 100, 2),
+                                                 "<br>Isolates tested:", obs)
+      )
+      ) +
+        geom_point(shape = 21, stroke = 0.5, aes(alpha = alpha)) +
+        scale_alpha_identity()+
+        scale_x_discrete(label = ifelse(str_length(unique(data$Antimicrobial)) > 15, str_c(str_sub(unique(data$Antimicrobial), 1, 15), "..."), unique(data$Antimicrobial))) + 
+        scale_size_manual(values = c("s" = 2, "m" = 5, "l" = 7)) +
+        labs(
+          title = "",
+          x = "",
+          y = ""
         ) +
-          geom_vline(aes(xintercept = vDividers), color = "grey25", linewidth = 0.3) +
-          geom_point(shape = 21, stroke = 0.5, aes(alpha = ifelse(obs > 30, 1, obs / 30))) +
-          scale_x_discrete(label = str_to_sentence(str_sub(unique(result_table$Antimicrobial), 1, 15))) +
-          scale_size_manual(values = c("s" = 2, "m" = 5, "l" = 7)) +
-          labs(
-            title = "",
-            x = "",
-            y = ""
-          ) +
-          theme_minimal() +
-          theme(
-            legend.position = "none",
-            panel.background = element_rect(fill = 'transparent'),
-            plot.background = element_rect(fill = 'white', color = NA),
-            panel.grid.major = element_line(color = "grey90"),
-            panel.grid.minor = element_blank(),
-            axis.text.y = element_text(colour = "grey20"),
-            axis.text.x = element_text(angle = 90, hjust = 1, color = "grey20"),
-            strip.background = element_blank(),
-            strip.text.x = element_blank(),
-            panel.spacing = unit(0, "lines"), 
-            panel.border = element_rect(color = "grey25", fill = NA, size = 0.8)
-          ) +
-          guides(fill = "none")
-        
-      } else {
-        
-        g <- ggplot(result_table, aes(x = interaction(Antimicrobial, Class), 
-                                      y = short_form,
-                                      text = paste("Microorganism:", Microorganism,
-                                                   "<br>Antimicrobial:", Antimicrobial,
-                                                   "<br>Class:", Class,
-                                                   "<br>% Susceptible:", round(prop * 100, 2),
-                                                   "<br>Isolates tested:", obs))) +
-          geom_tile(aes(fill = size, alpha = ifelse(obs > 30, 1, obs / 30)), color = "white", size = 0.5, width = 1) +
-          geom_vline(aes(xintercept = vDividers), color = "grey25", linewidth = 0.4) +
-          geom_text(aes(label = ifelse(is.na(prop), "", round(prop * 100, 0))), color = "black", size = 2) +
-          scale_fill_manual(
-            values = c("l" = "#66D3C2", "m" = "#FFD966", "s" = "#FF8A66"),
-            na.value = "transparent",
-            guide = guide_legend(title = "Value Range")
-          ) +
-          scale_x_discrete(label = str_to_sentence(str_sub(unique(result_table$Antimicrobial), 1, 15))) +
-          labs(
-            title = "",
-            x = "",
-            y = ""
-          ) +
-          theme_minimal() +
-          theme(
-            legend.position = "none",
-            panel.background = element_rect(fill = 'transparent'),
-            plot.background = element_rect(fill = 'white', color = NA),
-            panel.grid = element_blank(),
-            axis.text.y = element_text(colour = "grey20"),
-            axis.text.x = element_text(angle = 90, hjust = 1, color = "grey20"),
-            strip.background = element_blank(),
-            strip.text.x = element_blank(),
-            panel.spacing = unit(0, "lines"), 
-            panel.border = element_rect(color = "grey25", fill = NA, size = 0.8)
-          )+
-          guides(fill = "none")
-        
-      }
-      
+        theme_minimal() +
+        theme(
+          legend.position = "none",
+          panel.background = element_rect(fill = 'transparent'),
+          plot.background = element_rect(fill = 'white', color = NA),
+          panel.grid.major = element_line(color = "grey90"),
+          panel.grid.minor = element_blank(),
+          legend.background = element_rect(fill = 'transparent'),
+          axis.text.y = element_text(colour = "grey20"),
+          axis.text.x = element_text(angle = 90, hjust = 0, color = "grey20")
+        ) +
+        guides(fill = "none")
       
       plotly_plot <- ggplotly(g, tooltip = c("text")) %>%
         config(displaylogo = FALSE,
@@ -294,22 +349,179 @@ abPageServer <- function(id, data) {
                  'zoomOut2d',
                  'toggleSpikelines'
                )
-        ) %>% 
-        layout(
-          yaxis = list(fixedrange = TRUE)  # Freeze the y-axis to prevent zooming/scrolling
         )
+
+# Classic AB --------------------------------------------------------------
+      } else {
+        
+        full_table <- result_table %>%
+          select(!!sym(yVar), Antimicrobial) %>%
+          distinct() %>%
+          expand(!!sym(yVar), Antimicrobial)
+        
+        classicAB_table <- full_table %>%
+          left_join(result_table, by = c(yVar, "Antimicrobial"))
+        
+        classicAB_table <- classicAB_table %>%
+          mutate(
+            obs = ifelse(is.na(obs), 0, obs),
+            size = ifelse(is.na(size), "x", size),
+            size = ifelse(obs < 30, "x", size),
+            Class = ab_group(Antimicrobial)
+          )
+        
+        if(lowCounts() == "Exclude"){
+          classicAB_table <- classicAB_table %>% 
+            mutate(prop = ifelse(size == "x", NA, prop),
+                   obs = ifelse(size == "x", 0, obs)
+            )
+        }
+        
+        if(yVar == "Microorganism"){
+          classicAB_table <- classicAB_table %>% 
+            mutate(
+              Gram = coalesce(mo_gramstain(Microorganism), "Unknown"),
+              short_form = shorten_bacteria_names(Microorganism),
+              short_form = factor(short_form, 
+                                  levels = unique(classicAB_table %>%
+                                                    arrange(Gram, short_form) %>%
+                                                    pull(short_form)))
+            )
+ 
+          gram_count1 <- classicAB_table %>%
+            select(Microorganism, Gram) %>%
+            distinct() %>%
+            group_by(Gram) %>%
+            summarize(Count = n()) %>% 
+            filter(Gram == "Gram-negative") %>%
+            pull(Count)
+          
+          gram_count2 <- classicAB_table %>%
+            select(Microorganism, Gram) %>%
+            distinct() %>%
+            group_by(Gram) %>%
+            summarize(Count = n()) %>% 
+            filter(Gram == "Gram-positive") %>%
+            pull(Count)
+          
+          uniqueMO <- result_table %>% 
+            select(Microorganism) %>% 
+            distinct() %>% 
+            nrow()
+          
+          gram_line1 = ifelse(is.integer(gram_count1) && length(gram_count1) == 0L, 0, gram_count1 + 0.5)
+          gram_line2 = ifelse(is.integer(gram_count2) && length(gram_count2) == 0L || gram_count1 + gram_count2 == uniqueMO, 0, gram_count1 + gram_count2 + 0.5)
+          
+        } else {
+          
+          classicAB_table <- classicAB_table %>% 
+            mutate(
+              short_form = ifelse(str_length(.[[yVar]]) > 15, 
+                                  str_c(str_sub(.[[yVar]], 1, 15), "..."), 
+                                  .[[yVar]]),
+              short_form = factor(short_form, 
+                                  levels = unique(classicAB_table %>%
+                                                    arrange(short_form) %>%
+                                                    pull(short_form)))
+              )
+          
+        }
+        
+        classicAB_table <- classicAB_table %>% 
+          group_by(!!sym(yVar)) %>% 
+          mutate(obs_range = paste0("(n = ", min(obs[obs > 0]), " - ", max(obs), ")"),
+                 short_form = paste0(short_form, "\n", obs_range))
+        
+        print(head(classicAB_table, 25))
+        
+        if(showColors() == TRUE){
+          color_palette <- c("1" = "#D73027", "2" = "#FEE08B", "3" = "#44CDC4", "x" = "white")
+        } else {
+          color_palette <- c("1" = "white", "2" = "white", "3" = "white", "x" = "white")
+        }
+        
+        plot_list <- classicAB_table %>% 
+          split(.$Class) %>% 
+          lapply(function(data) {
+            ggplot(data, aes(x = interaction(Antimicrobial, Class), 
+                             y = short_form, 
+                             fill = size,
+                             text = paste(
+                               yVar, !!sym(yVar), 
+                               if (yVar == "Microorganism") {
+                                 paste("<br>Gram-stain:", Gram)
+                               } else {
+                                 ""
+                               },
+                               "<br>Antimicrobial: ", Antimicrobial,
+                               "<br>Class: ", Class,
+                               "<br>Observations: ", obs,
+                               "<br>Proportion: ", round(prop * 100, 2), "%"
+                             ))) +
+              geom_tile(color = "grey90", size = 0.2) +
+              geom_text(size = 3, color = "grey20", check_overlap = T,
+                        aes(label = round(prop * 100, 0))) +
+              { 
+                if(yVar == "Microorganism") {
+                  list(
+                    geom_hline(yintercept = gram_line1, color = "grey20", size = 0.5),
+                    geom_hline(yintercept = gram_line2, color = "grey20", size = 0.5)
+                  )
+                } else {
+                  NULL
+                }
+              } +
+              scale_x_discrete(label = ifelse(str_length(unique(data$Antimicrobial)) > 15, str_c(str_sub(unique(data$Antimicrobial), 1, 15), "..."), unique(data$Antimicrobial))) + 
+              #scale_y_discrete(label = paste0(short_form, "\n", obs_range)) +
+              scale_fill_manual(values = color_palette) +
+              labs(title = "", x = "", y = "") +
+              theme_minimal() + 
+              theme(
+                legend.position = "none",
+                panel.background = element_rect(fill = 'transparent'),
+                panel.border = element_rect(colour = "grey20", fill = 'transparent', linewidth = 1.1),
+                plot.background = element_rect(fill = 'white', color = NA),
+                panel.grid.major = element_blank(),
+                panel.grid.minor = element_blank(),
+                axis.text.y = element_text(colour = "grey20"),
+                axis.text.x = element_text(angle = 90, hjust = 1, color = "grey20"),
+                strip.text.x = element_blank(),
+                panel.spacing.x = unit(0, "mm")
+              )
+          })
+        
+        plotly_list <- lapply(plot_list, function(p) {
+          ggplotly(p, tooltip = "text")
+        })
+        
+        class_counts <- classicAB_table %>%
+          group_by(Class) %>%
+          summarise(n = n_distinct(Antimicrobial)) %>%
+          mutate(prop_width = n / sum(n))
+        
+        widths <- class_counts$prop_width
+        
+        subplot(plotly_list, nrows = 1, widths = widths, margin = 0, shareY = TRUE) %>% 
+          config(displaylogo = FALSE,
+                 modeBarButtonsToRemove = list(
+                   'sendDataToCloud', 
+                   'autoScale2d', 
+                   'resetScale2d', 
+                   'hoverClosestCartesian', 
+                   'hoverCompareCartesian', 
+                   'zoom2d', 
+                   'pan2d', 
+                   'select2d', 
+                   'lasso2d', 
+                   'zoomIn2d', 
+                   'zoomOut2d', 
+                   'toggleSpikelines'
+                 ))
+      }
     })
     
     output$plot <- renderPlotly({
       plot()
-    })
-    
-    output$errorHandling <- renderUI({
-      div(style = "display: flex; align-items: center; justify-content: center; height: 100%; flex-direction: column; text-align: center;",
-          icon("disease", style = "font-size:100px; color: #44CDC4"),
-          h4("Oops... looks like there isn't enough data for this plot."),
-          h6("Try reducing the number of filters applied or adjust your data in the 'Import' tab.")
-      )
     })
     
     observeEvent(input$save_btn, {

@@ -37,10 +37,14 @@ library(zoo)
 library(renv)
 library(mapview)
 library(nanoparquet)
+library(shinycssloaders)
 
-#Use option 2
+# renv::init()
+
+# Run this line and select option 2 for dockerizing.
 # renv::snapshot()
 
+# renv::deactivate()
 
 # Source Files ------------------------------------------------------------
 #Modules
@@ -59,6 +63,9 @@ source("Modules/filterPanelModule.R")
 source("Functions/dataCleaningFunction.R")
 source("Functions/columnDetectFunctions.R")
 source("Functions/regionMatching.R")
+
+#Data
+awareList <- read.csv("./Data/2023AwareClassifications.csv")
 
 # Increase maximum data size ----------------------------------------------
 options(shiny.maxRequestSize = 1000 * 1024^2)

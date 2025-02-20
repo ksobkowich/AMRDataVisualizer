@@ -83,6 +83,16 @@ filterPanelServer <- function(id, data, default_filters, auto_populate = list())
               multiple = TRUE
             )
             
+          } else if (col == "WHO AWaRe Class:") {
+            
+            updateUI[[ns("awareFilter")]] <- selectizeInput(
+              ns("awareFilter"),
+              label = "WHO AWaRe Class:",
+              choices = c("Access", "Reserve", "Watch"),
+              selected = NULL,
+              multiple = TRUE
+            )
+            
           } else {
             
             default_value <- if (isTRUE(auto_populate[[col]])) {
@@ -113,7 +123,9 @@ filterPanelServer <- function(id, data, default_filters, auto_populate = list())
       showModal(modalDialog(
         title = "Select Filters",
         checkboxGroupInput(ns("selectedFilters"), "Choose Filters", 
-                           choices = sort(c(colnames(data), "Resistant to:")), 
+                           choices = sort(c(colnames(data), 
+                                            "Resistant to:", 
+                                            "WHO AWaRe Class:")), 
                            selected = selected_filters$columns),
         footer = tagList(
           modalButton("Cancel"),
@@ -141,6 +153,17 @@ filterPanelServer <- function(id, data, default_filters, auto_populate = list())
         
         filtered <- data %>%
           inner_join(resistant_ids, by = colnames(resistant_ids))
+      }
+      
+      if (!is.null(input$awareFilter) && length(input$awareFilter) > 0) {
+        
+        relevantAntimicrobials <- awareList %>%
+          filter(awareGroup %in% input$awareFilter) %>%
+          pull(Antimicrobial)
+        
+        filtered <- data %>%
+          filter(Antimicrobial %in% relevantAntimicrobials)
+        
       }
       
       for (col in selected_filters$columns) {

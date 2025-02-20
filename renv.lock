@@ -1994,6 +1994,20 @@
       ],
       "Hash": "45f99f3173e5513e2dec78dc4d63f9f0"
     },
+    "shinycssloaders": {
+      "Package": "shinycssloaders",
+      "Version": "1.0.0",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Requirements": [
+        "R",
+        "digest",
+        "glue",
+        "grDevices",
+        "shiny"
+      ],
+      "Hash": "f39bb3c44a9b496723ec7e86f9a771d8"
+    },
     "shinydashboard": {
       "Package": "shinydashboard",
       "Version": "0.7.2",

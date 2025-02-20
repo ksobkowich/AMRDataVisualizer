@@ -73,30 +73,30 @@ mapPageUI <- function(id, data) {
 mapPageServer <- function(id, data) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
-    
-    filteredData <- filterPanelServer("filters", data, 
-                      default_filters = c("Antimicrobial", "Microorganism", "Species", "Source", "Date"), 
+
+    filteredData <- filterPanelServer("filters", data,
+                      default_filters = c("Antimicrobial", "Microorganism", "Species", "Source", "Date"),
                       auto_populate = list(Antimicrobial = TRUE, Microorganism = TRUE))
-    
+
     initialData <- reactive({
       data
     })
-    
+
     plotData <- reactive({
       filteredData()
     })
-    
+
     output$content <- renderUI({
       req(plotData())
       if (!is.null(plotData()) && nrow(plotData()) > 0) {
         tagList(
-        wellPanel(style = "overflow-x: scroll; overflow-y: scroll; max-height: 80vh;",
-                  div(style = "min-height: 750px",
-                      leafletOutput(ns("map"), height = "71vh")
-                  ),
-                  class = "contentWell"
-        ),
-        downloadButton(ns("savePlot"), "Save", class = "plotSaveButton", icon = NULL)
+          wellPanel(style = "overflow-x: scroll; overflow-y: scroll; max-height: 80vh;",
+                    div(style = "min-height: 750px",
+                        withSpinner(leafletOutput(ns("map"), height = "71vh"), type = 4, color = "#44CDC4")
+                    ),
+                    class = "contentWell"
+          ),
+          downloadButton(ns("savePlot"), icon = NULL, "Save", class = "plotSaveButton")
         )
       } else {
         wellPanel(
@@ -109,7 +109,7 @@ mapPageServer <- function(id, data) {
         )
       }
     })
-    
+
     output$errorHandling <- renderUI({
       div(style = "display: flex; align-items: center; justify-content: center; height: 100%; flex-direction: column; text-align: center;",
           icon("disease", style = "font-size:100px; color: #44CDC4"),
@@ -117,15 +117,15 @@ mapPageServer <- function(id, data) {
           h6("Try reducing the number of filters applied or adjust your data in the 'Import' tab.")
       )
     })
-    
+
     baseMap <- preprocessMapData(data)
-    
+
     map_reactive <- reactive({
       req(baseMap)
       req(plotData())
 
       mapData <- preprocessPlotData(plotData())
-      mapData <- matchSubregions(baseMap, mapData) 
+      mapData <- matchSubregions(baseMap, mapData)
 
       map <- baseMap %>%
         left_join(mapData, by = c("Region", "Subregion")) %>%
@@ -149,17 +149,28 @@ mapPageServer <- function(id, data) {
 
       map2.hatch <- map2.hatch %>%
         left_join(map2, by = "ID")
-        
+
       popups <- paste0(
         "<div style='font-family: Carme, sans-serif; line-height: 1.4;'>",
-        "<h4 style='color: #44CDC4;'><b>", map$Subregion, " County, ", "<span style='color: #34435a;'>", map$Region, "</span></b></h4>",
+
+        # Only include the Subregion line if it is not NA or empty
+        ifelse(!is.na(map$Subregion) & map$Subregion != "",
+               paste0("<h4 style='color: #44CDC4;'><b>", map$Subregion, " County, ",
+                      "<span style='color: #34435a;'>", map$Region, "</span></b></h4>"),
+               paste0("<h4 style='color: #44CDC4;'><b>", map$Region, "</b></h4>")),
+
         "<hr style='border-top: 1px solid #cccccc;'>",
-        "<i class='fa fa-bacterium' style='color: #44CDC4; font-size: 20px;'></i> <span style='font-family: Carme;'>: ", 
+
+        "<i class='fa fa-bacterium' style='color: #44CDC4; font-size: 20px;'></i> <span style='font-family: Carme;'>: ",
         ifelse(length(unique(plotData()$Microorganism)) > 1, "Multiple selected", paste(unique(plotData()$Microorganism), collapse=", ")), "</span>",
-        "<br>", 
-        "<i class='fa fa-pills' style='color: #34435a; font-size: 20px;'></i> <span style='font-family: Carme;'>: ", 
-        ifelse(length(unique(plotData()$Antimicrobial)) > 1, "Multiple selected", paste(unique(plotData()$Antimicrobial), collapse=", ")), "</span>",
+
         "<br>",
+
+        "<i class='fa fa-pills' style='color: #34435a; font-size: 20px;'></i> <span style='font-family: Carme;'>: ",
+        ifelse(length(unique(plotData()$Antimicrobial)) > 1, "Multiple selected", paste(unique(plotData()$Antimicrobial), collapse=", ")), "</span>",
+
+        "<br>",
+
         sapply(1:length(map$propS), function(i) {
           if (is.na(map$propS[i]) || map$Count[i] < 30) {
             ""
@@ -171,7 +182,9 @@ mapPageServer <- function(id, data) {
             "<i class='fa fa-times-circle' style='color: red; font-size: 20px;'></i> <span style='font-family: Carme;'>Low observed susceptibility in isolates tested.</span>"
           }
         }),
+
         "<hr style='border-top: 1px solid #cccccc;'>",
+
         "<h5><b>Number of isolates tested: </b>", format(round(as.integer(map$Count), 0), nsmall=1, big.mark=","), "</h5>",
         "<h5><b>Percentage of isolates susceptible: </b>", format(round(as.numeric(map$propS * 100), 0)), "%</h5>",
         "<h5><b>Percentage of isolates intermediate: </b>", format(round(as.numeric(map$propI * 100), 0)), "%</h5>",
@@ -180,13 +193,13 @@ mapPageServer <- function(id, data) {
       )
 
      leaflet(map) %>%
-        addProviderTiles(providers$CartoDB.Positron) %>% 
+        addProviderTiles(providers$CartoDB.Positron) %>%
         addPolygons(
           data = map1,
           fillColor = ~color_pal(propS),
           weight = 0,
           fillOpacity = 0.8,
-        ) %>% 
+        ) %>%
         addPolylines(
           data = map2.hatch,
           color = ~color_pal(propS),
@@ -199,11 +212,11 @@ mapPageServer <- function(id, data) {
           popup = popups
         )
     })
-    
+
     output$map <- renderLeaflet({
       map_reactive()
     })
-    
+
     output$savePlot <- downloadHandler(
       filename = paste(Sys.Date(), "AMRVisualizerMap.png", sep = "_"),
       content = function(file) {
