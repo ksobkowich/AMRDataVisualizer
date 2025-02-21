@@ -261,6 +261,7 @@ tsPageServer <- function(id, data) {
                 text = ~paste("Antimicrobial:", Antimicrobial, "<br>Isolates tested:", Count, "<br>% Susceptible:", round(propS,3), "<br>Date:", Date),
                 hoverinfo = "text") %>%
           layout(title = "",
+                 legend = list(orientation = 'h'),
                  xaxis = list(title = "Date"),
                  yaxis = list(title = "% Susceptible", range = c(0, 100))) %>%  # Adjust range to 0-100%
           config(displaylogo = FALSE,

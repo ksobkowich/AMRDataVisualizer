@@ -432,8 +432,6 @@ abPageServer <- function(id, data) {
           mutate(obs_range = paste0("(n = ", min(obs[obs > 0]), " - ", max(obs), ")"),
                  short_form = paste0(short_form, "\n", obs_range))
         
-        print(head(classicAB_table, 25))
-        
         if(showColors() == TRUE){
           color_palette <- c("1" = "#D73027", "2" = "#FEE08B", "3" = "#44CDC4", "x" = "white")
         } else {
