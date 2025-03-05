@@ -1,5 +1,5 @@
 # Use the official R image as the base image
-FROM ksobkowich/amrdata-visualizer:v1.2
+FROM ksobkowich/amrdata-visualizer:v1.3
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
@@ -66,12 +66,12 @@ CMD ["R", "-e", "shiny::runApp('/srv/shiny-server', host = '0.0.0.0', port = 383
 
 #Run in terminal
 # cd /Users/kurtissobkowich/Git/companion_animal_amr/AMRVisualizerV2/AMRDataVisualizer
-# Build the image: docker build -t ksobkowich/amrdata-visualizer:v1.3 . --platform=linux/amd64
-# docker run --platform=linux/amd64 -d -p 3838:3838 ksobkowich/amrdata-visualizer:v1.3
-# docker push ksobkowich/amrdata-visualizer:v1.3
+# Build the image: docker build -t ksobkowich/amrdata-visualizer:v1.4 . --platform=linux/amd64
+# docker run --platform=linux/amd64 -d -p 3838:3838 ksobkowich/amrdata-visualizer:v1.4
+# docker push ksobkowich/amrdata-visualizer:v1.4
 
 #Duplicate and tag as latest
-#docker tag ksobkowich/amrdata-visualizer:v1.3 ksobkowich/amrdata-visualizer:latest
+#docker tag ksobkowich/amrdata-visualizer:v1.4 ksobkowich/amrdata-visualizer:latest
 #docker push ksobkowich/amrdata-visualizer:latest
 
 

@@ -63,6 +63,7 @@ source("Modules/filterPanelModule.R")
 source("Functions/dataCleaningFunction.R")
 source("Functions/columnDetectFunctions.R")
 source("Functions/regionMatching.R")
+source("Functions/parseWideColumns.R")
 
 #Data
 awareList <- read.csv("./Data/2023AwareClassifications.csv")

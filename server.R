@@ -43,19 +43,33 @@ server <- function(input, output, session) {
   })
   
   observeEvent(input$info, {
-    showModal(modalDialog(
-      title = div(
-        style = "text-align: center;",
-        tags$img(src = "logoDark.png", height = "100px", style = "vertical-align: middle;")
-      ),
-      h4("How to use this app"),
-      
-      HTML('<iframe width="100%" height = "300" src="https://www.youtube.com/embed/pd7jODRf4os" frameborder="0" allowfullscreen></iframe>'),
-      easyClose = T
-    ))
+    showModal(
+      modalDialog(
+        title = div(
+          style = "text-align: center;",
+          tags$img(
+            src = "logoDark.png",
+            height = "100px",
+            style = "vertical-align: middle;"
+          )
+        ),
+        switch(
+          input$tabs,
+          importTab   = includeMarkdown("./Documentation/import.rmd"),
+          ovTab       = includeMarkdown("./Documentation/overview.rmd"),
+          abTab       = includeMarkdown("./Documentation/antibiogram.rmd"),
+          mapTab      = includeMarkdown("./Documentation/map.rmd"),
+          trendsTab   = includeMarkdown("./Documentation/trends.rmd"),
+          pathogenTab = includeMarkdown("./Documentation/pathogens.rmd"),
+          mdrTab      = includeMarkdown("./Documentation/mdr.rmd"),
+          exploreTab  = includeMarkdown("./Documentation/explore.rmd"),
+          "Documentation Coming Soon."
+        ),
+        
+        easyClose = TRUE
+      )
+    )
   })
-  
-  
   
   
   # Overview Page -----------------------------------------------------------

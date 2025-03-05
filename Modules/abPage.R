@@ -4,23 +4,21 @@ abPageUI <- function(id, data) {
     fluidRow(
       
       
-# Main Content ------------------------------------------------------------
+      # Main Content ------------------------------------------------------------
       
       column(9,
              uiOutput(ns("content"))
       ),
       
-# Side menus -----------------------------------------------------------------
+      # Side menus -----------------------------------------------------------------
       
       column(3,
              
-
-# Filters -----------------------------------------------------------------
-
+             # Filters -----------------------------------------------------------------
+             
              filterPanelUI(ns("filters")),
-            
-
-# Plot controls -----------------------------------------------------------
+             
+             # Plot controls -----------------------------------------------------------
              uiOutput(ns("controls")),
              
              # Legend ------------------------------------------------------------------
@@ -29,9 +27,9 @@ abPageUI <- function(id, data) {
              
       )
     ),
-
-
-# Save Plot Logic ---------------------------------------------------------
+    
+    
+    # Save Plot Logic ---------------------------------------------------------
     tags$script(HTML(
       "
       Shiny.addCustomMessageHandler('savePlot', function(data) {
@@ -51,7 +49,7 @@ abPageUI <- function(id, data) {
       });
       "
     ))
-
+    
   )
 }
 
@@ -67,6 +65,7 @@ abPageServer <- function(id, data) {
     plotData <- reactive({filteredData()})
     
     showColors <- reactiveVal(TRUE)
+    aggByGenus <- reactiveVal(FALSE)
     abType <- reactiveVal("Classic")
     lowCounts <- reactiveVal("Include")
     yVar <- reactiveVal("Microorganism")
@@ -74,59 +73,60 @@ abPageServer <- function(id, data) {
     observeEvent(input$applyControl, {
       showColors(input$abColors)
       abType(input$abType)
+      aggByGenus(input$aggGenus)
       lowCounts(input$handleLowCount)
       yVar(input$yVar)
     })
     
     
-# Render Legend -----------------------------------------------------------
+    # Render Legend -----------------------------------------------------------
     output$legend <- renderUI({
-
+      
       if(abType() == "Visual"){
-
-# Visual Legend -----------------------------------------------------------
-      wellPanel(
-        h4("Legend", class = "legend-title"),
-        h5("Size", class = "legend-section"),
-        div(
-          class = "legend-section",
+        
+        # Visual Legend -----------------------------------------------------------
+        wellPanel(
+          h4("Legend", class = "legend-title"),
+          h5("Size", class = "legend-section"),
           div(
-            class = "legend-item",
-            tags$i(class = "fas fa-circle legend-circle", style = "font-size: 10px; margin-left: 10px;"),
-            span("Low susceptibility (<70%)", class = "legend-label", style = "margin-left: 20px;")
+            class = "legend-section",
+            div(
+              class = "legend-item",
+              tags$i(class = "fas fa-circle legend-circle", style = "font-size: 10px; margin-left: 10px;"),
+              span("Low susceptibility (<70%)", class = "legend-label", style = "margin-left: 20px;")
+            ),
+            div(
+              class = "legend-item",
+              tags$i(class = "fas fa-circle legend-circle", style = "font-size: 20px; margin-left: 5px;"),
+              span("Moderate susceptibility (70 - 90%)", class = "legend-label", style = "margin-left: 15px;")
+            ),
+            div(
+              class = "legend-item",
+              tags$i(class = "fas fa-circle legend-circle", style = "font-size: 30px; margin-right: 10px;"),
+              span("High susceptibility (>90%)", class = "legend-label", style = "margin-left: 0px;")
+            )
           ),
+          h5("Opacity", class = "legend-section"),
           div(
-            class = "legend-item",
-            tags$i(class = "fas fa-circle legend-circle", style = "font-size: 20px; margin-left: 5px;"),
-            span("Moderate susceptibility (70 - 90%)", class = "legend-label", style = "margin-left: 15px;")
+            class = "opacity-container",
+            div(
+              class = "opacity-item",
+              tags$i(class = "fas fa-circle legend-circle", style = "opacity: 0.1;"),
+              span("<30 Samples", class = "legend-label")
+            ),
+            div(class = "vertical-divider"),
+            div(
+              class = "opacity-item",
+              tags$i(class = "fas fa-circle legend-circle"),
+              span("30+ Samples", class = "legend-label")
+            )
           ),
-          div(
-            class = "legend-item",
-            tags$i(class = "fas fa-circle legend-circle", style = "font-size: 30px; margin-right: 10px;"),
-            span("High susceptibility (>90%)", class = "legend-label", style = "margin-left: 0px;")
-          )
-        ),
-        h5("Opacity", class = "legend-section"),
-        div(
-          class = "opacity-container",
-          div(
-            class = "opacity-item",
-            tags$i(class = "fas fa-circle legend-circle", style = "opacity: 0.1;"),
-            span("<30 Samples", class = "legend-label")
-          ),
-          div(class = "vertical-divider"),
-          div(
-            class = "opacity-item",
-            tags$i(class = "fas fa-circle legend-circle"),
-            span("30+ Samples", class = "legend-label")
-          )
-        ),
-        h6("Bubbles are colored by antimicrobial class."),
-        h6("Hover over a bubble for more details."),
-        class = "legendWell"
-      )
-
-# Classic Legend ----------------------------------------------------------
+          h6("Bubbles are colored by antimicrobial class."),
+          h6("Hover over a bubble for more details."),
+          class = "legendWell"
+        )
+        
+        # Classic Legend ----------------------------------------------------------
       } else {
         
         wellPanel(        
@@ -163,39 +163,45 @@ abPageServer <- function(id, data) {
       
     })
     
-
-# Render Controls ---------------------------------------------------------
+    
+    # Render Controls ---------------------------------------------------------
     output$controls <- renderUI({
       tagList(
-        wellPanel(
-          div(
-            style = "display: flex; justify-content: center; align-items: center; position: relative;",
-            h4("Controls", style = "text-align: center; margin: 0;")
-          ),
-          selectizeInput(ns("yVar"), "Y-axis variable", selected = "Microorganism", choices = c("Microorganism", "Source")),
-          radioGroupButtons(ns("abType"), label = "Antibiogram style:", selected = "Classic", choices = c("Classic", "Visual")),
-          radioGroupButtons(ns("handleLowCount"), label = "Handle low-count (<30) results", selected = "Include", choices = c("Include", "Exclude")),
-          
-          conditionalPanel(
-            condition = sprintf("input['%s'] == 'Classic'", ns("abType")), 
-            materialSwitch(ns("abColors"), label = "Show colors?", value = TRUE)
-          ),
-          
-          actionButton(ns("applyControl"), "Apply", class = "submitButton"),
-          class = "contentWell",
-          height = "10vh"
+        bsCollapse(
+          id = "collapsePanel",
+          open = NULL,
+          multiple = T,
+          bsCollapsePanel(
+            HTML("Controls <span class='glyphicon glyphicon-chevron-down' data-toggle='collapse-icon' 
+            style='float: right; color: #aaa;'></span>"),         
+            selectizeInput(ns("yVar"), "Y-axis variable", selected = "Microorganism", choices = c("Microorganism", "Source")),
+            radioGroupButtons(ns("abType"), label = "Antibiogram style:", selected = "Classic", choices = c("Classic", "Visual")),
+            radioGroupButtons(ns("handleLowCount"), label = "Handle low-count (<30) results", selected = "Include", choices = c("Include", "Exclude")),
+            
+            conditionalPanel(
+              condition = sprintf("input['%s'] == 'Classic'", ns("abType")), 
+              materialSwitch(ns("abColors"), label = "Show colors?", value = TRUE)
+            ),
+            
+            conditionalPanel(
+              condition = sprintf("input['%s'] == 'Microorganism'", ns("yVar")), 
+              materialSwitch(ns("aggGenus"), label = "Aggregate by Genus?", value = F)
+            ),
+            
+            actionButton(ns("applyControl"), "Apply", class = "submitButton")
+          )
         )
       )
     })
     
-
-# Render Content -------------------------------------------------------------
+    
+    # Render Content -------------------------------------------------------------
     output$content <- renderUI({
       data <- req(plotData())
       
       if (nrow(data) > 0) {
-
-# Show Plot ---------------------------------------------------------------
+        
+        # Show Plot ---------------------------------------------------------------
         tagList(
           wellPanel(
             style = "overflow-x: scroll; overflow-y: scroll; max-height: 80vh;",
@@ -207,8 +213,8 @@ abPageServer <- function(id, data) {
           ),
           actionButton(ns("save_btn"), "Save", class = "plotSaveButton")
         )
-
-# Show Error Handling -----------------------------------------------------
+        
+        # Show Error Handling -----------------------------------------------------
       } else {
         wellPanel(
           style = "display: flex; align-items: center; justify-content: center; max-height: 80vh;",
@@ -221,9 +227,9 @@ abPageServer <- function(id, data) {
       }
     })
     
-
-# Define Error Handling ---------------------------------------------------
-
+    
+    # Define Error Handling ---------------------------------------------------
+    
     output$errorHandling <- renderUI({
       div(style = "display: flex; align-items: center; justify-content: center; height: 100%; flex-direction: column; text-align: center;",
           icon("disease", style = "font-size:100px; color: #44CDC4"),
@@ -231,10 +237,10 @@ abPageServer <- function(id, data) {
           h6("Try reducing the number of filters applied or adjust your data in the 'Import' tab.")
       )
     })    
-
-# Define Plot -------------------------------------------------------------
+    
+    # Define Plot -------------------------------------------------------------
     plot <- reactive({
-
+      
       shorten_bacteria_names <- function(names) {
         str_replace(
           names,
@@ -247,7 +253,12 @@ abPageServer <- function(id, data) {
       
       result_table <- plotData() %>%
         filter(Interpretation %in% c("S", "R", "I")) %>%
-        mutate(Interpretation = ifelse(Interpretation == "S", 1, 0)) %>%
+        mutate(
+          # Convert "S" to 1, everything else to 0
+          Interpretation = ifelse(Interpretation == "S", 1, 0),
+          # Conditionally switch to mo_genus() if aggByGenus() is TRUE
+          Microorganism  = if (aggByGenus()) mo_genus(Microorganism) else Microorganism
+        ) %>% 
         group_by(!!sym(yVar)) %>%
         mutate(Frequency = n()) %>%
         ungroup() %>%
@@ -272,8 +283,8 @@ abPageServer <- function(id, data) {
             mutate(result_table, short_form = shorten_bacteria_names(.[[yVar]]))
           } else {
             mutate(result_table, short_form = ifelse(str_length(.[[yVar]]) > 15, 
-                                             str_c(str_sub(.[[yVar]], 1, 15), "..."), 
-                                             .[[yVar]]))
+                                                     str_c(str_sub(.[[yVar]], 1, 15), "..."), 
+                                                     .[[yVar]]))
           }
         }%>% 
         arrange(Class, Antimicrobial)
@@ -284,7 +295,7 @@ abPageServer <- function(id, data) {
         mutate(Antimicrobial = as.ab(Antimicrobial)) %>% 
         pull(Antimicrobial)
       
-# Visual AB ---------------------------------------------------------------
+      # Visual AB ---------------------------------------------------------------
       if(abType() == "Visual"){
         
         if(lowCounts() == "Exclude") {
@@ -298,60 +309,60 @@ abPageServer <- function(id, data) {
             mutate(alpha = ifelse(obs > 30, 1, obs / 30))
           
         }
-
-      g <- ggplot(result_table, aes(x = interaction(Antimicrobial, Class),
-                                    y = short_form,
-                                    size = size,
-                                    colour = Class,
-                                    fill = Class,
-                                    text = paste(yVar, !!sym(yVar),
-                                                 "<br>Antimicrobial:", Antimicrobial,
-                                                 "<br>Class:", Class,
-                                                 "<br>% Susceptible:", round(prop * 100, 2),
-                                                 "<br>Isolates tested:", obs)
-      )
-      ) +
-        geom_point(shape = 21, stroke = 0.5, aes(alpha = alpha)) +
-        scale_alpha_identity()+
-        scale_x_discrete(label = ifelse(str_length(unique(data$Antimicrobial)) > 15, str_c(str_sub(unique(data$Antimicrobial), 1, 15), "..."), unique(data$Antimicrobial))) + 
-        scale_size_manual(values = c("s" = 2, "m" = 5, "l" = 7)) +
-        labs(
-          title = "",
-          x = "",
-          y = ""
-        ) +
-        theme_minimal() +
-        theme(
-          legend.position = "none",
-          panel.background = element_rect(fill = 'transparent'),
-          plot.background = element_rect(fill = 'white', color = NA),
-          panel.grid.major = element_line(color = "grey90"),
-          panel.grid.minor = element_blank(),
-          legend.background = element_rect(fill = 'transparent'),
-          axis.text.y = element_text(colour = "grey20"),
-          axis.text.x = element_text(angle = 90, hjust = 0, color = "grey20")
-        ) +
-        guides(fill = "none")
-      
-      plotly_plot <- ggplotly(g, tooltip = c("text")) %>%
-        config(displaylogo = FALSE,
-               modeBarButtonsToRemove = list(
-                 'sendDataToCloud',
-                 'autoScale2d',
-                 'resetScale2d',
-                 'hoverClosestCartesian',
-                 'hoverCompareCartesian',
-                 'zoom2d', 
-                 'pan2d',
-                 'select2d',
-                 'lasso2d',
-                 'zoomIn2d', 
-                 'zoomOut2d',
-                 'toggleSpikelines'
-               )
+        
+        g <- ggplot(result_table, aes(x = interaction(Antimicrobial, Class),
+                                      y = short_form,
+                                      size = size,
+                                      colour = Class,
+                                      fill = Class,
+                                      text = paste(yVar, !!sym(yVar),
+                                                   "<br>Antimicrobial:", Antimicrobial,
+                                                   "<br>Class:", Class,
+                                                   "<br>% Susceptible:", round(prop * 100, 2),
+                                                   "<br>Isolates tested:", obs)
         )
-
-# Classic AB --------------------------------------------------------------
+        ) +
+          geom_point(shape = 21, stroke = 0.5, aes(alpha = alpha)) +
+          scale_alpha_identity()+
+          scale_x_discrete(label = ifelse(str_length(unique(data$Antimicrobial)) > 15, str_c(str_sub(unique(data$Antimicrobial), 1, 15), "..."), unique(data$Antimicrobial))) + 
+          scale_size_manual(values = c("s" = 2, "m" = 5, "l" = 7)) +
+          labs(
+            title = "",
+            x = "",
+            y = ""
+          ) +
+          theme_minimal() +
+          theme(
+            legend.position = "none",
+            panel.background = element_rect(fill = 'transparent'),
+            plot.background = element_rect(fill = 'white', color = NA),
+            panel.grid.major = element_line(color = "grey90"),
+            panel.grid.minor = element_blank(),
+            legend.background = element_rect(fill = 'transparent'),
+            axis.text.y = element_text(colour = "grey20"),
+            axis.text.x = element_text(angle = 90, hjust = 0, color = "grey20")
+          ) +
+          guides(fill = "none")
+        
+        plotly_plot <- ggplotly(g, tooltip = c("text")) %>%
+          config(displaylogo = FALSE,
+                 modeBarButtonsToRemove = list(
+                   'sendDataToCloud',
+                   'autoScale2d',
+                   'resetScale2d',
+                   'hoverClosestCartesian',
+                   'hoverCompareCartesian',
+                   'zoom2d', 
+                   'pan2d',
+                   'select2d',
+                   'lasso2d',
+                   'zoomIn2d', 
+                   'zoomOut2d',
+                   'toggleSpikelines'
+                 )
+          )
+        
+        # Classic AB --------------------------------------------------------------
       } else {
         
         full_table <- result_table %>%
@@ -377,7 +388,7 @@ abPageServer <- function(id, data) {
             )
         }
         
-        if(yVar == "Microorganism"){
+        if(yVar == "Microorganism" && aggByGenus() == F){
           classicAB_table <- classicAB_table %>% 
             mutate(
               Gram = coalesce(mo_gramstain(Microorganism), "Unknown"),
@@ -387,7 +398,7 @@ abPageServer <- function(id, data) {
                                                     arrange(Gram, short_form) %>%
                                                     pull(short_form)))
             )
- 
+          
           gram_count1 <- classicAB_table %>%
             select(Microorganism, Gram) %>%
             distinct() %>%
@@ -423,7 +434,7 @@ abPageServer <- function(id, data) {
                                   levels = unique(classicAB_table %>%
                                                     arrange(short_form) %>%
                                                     pull(short_form)))
-              )
+            )
           
         }
         
@@ -446,7 +457,7 @@ abPageServer <- function(id, data) {
                              fill = size,
                              text = paste(
                                yVar, !!sym(yVar), 
-                               if (yVar == "Microorganism") {
+                               if (yVar == "Microorganism" & aggByGenus() == F) {
                                  paste("<br>Gram-stain:", Gram)
                                } else {
                                  ""
@@ -460,7 +471,7 @@ abPageServer <- function(id, data) {
               geom_text(size = 3, color = "grey20", check_overlap = T,
                         aes(label = round(prop * 100, 0))) +
               { 
-                if(yVar == "Microorganism") {
+                if(yVar == "Microorganism" & aggByGenus() == F) {
                   list(
                     geom_hline(yintercept = gram_line1, color = "grey20", size = 0.5),
                     geom_hline(yintercept = gram_line2, color = "grey20", size = 0.5)

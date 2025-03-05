@@ -1,21 +1,26 @@
 filterPanelUI <- function(id, data) {
   ns <- NS(id)
-  wellPanel(
-    div(
-      style = "display: flex; justify-content: center; align-items: center; position: relative;",
-      h4("Filters", style = "text-align: center; margin: 0;"),
-      actionButton(
-        ns("editFilters"),
-        label = "",
-        icon = icon("pencil-alt", lib = "font-awesome"),
-        class = "btn btn-default",
-        style = "position: absolute; right: 10px; background-color: #f0f0f0; color: grey; border: none;"
-      )
-    ),
-    uiOutput(ns("filters")),
-    actionButton(ns("applyFilter"), "Apply", class = "submitButton"),
-    class = "contentWell",
-    height = "35vh"
+  bsCollapse(
+    id = "collapsePanel",
+    open = "Filters",
+    multiple = T,
+    bsCollapsePanel(
+      HTML("Filters <span class='glyphicon glyphicon-chevron-down' data-toggle='collapse-icon' 
+            style='float: right; color: #aaa;'></span>"),
+      div(
+        style = "display: flex; justify-content: center; align-items: center; position: relative;",
+        actionButton(
+          ns("editFilters"),
+          label = "",
+          icon = icon("pencil-alt", lib = "font-awesome"),
+          class = "btn btn-default",
+          style = "position: absolute; right: 10px;cbackground-color: #f0f0f0; color: grey; border: none;"
+        ),
+        style = "margin-top: 2px;"
+      ),
+      uiOutput(ns("filters")),
+      actionButton(ns("applyFilter"), "Apply", class = "submitButton")
+    )
   )
 }
 

@@ -308,41 +308,70 @@ importDataServer <- function(id) {
         
       } else {
 
-
 ## If data have been processed --------------------------------------------
         if (displayCleanedData()) {
           tagList(
-            actionButton(ns("clear"), "Clear Data", class = "clearButton"),
-            br(),
-            h3("Your data are ready for use!", style = "color: #44CDC4"),
-            h5("Please select a tab from the side menu to explore your AMR data."),
-            h5("If you would like to select a new dataset, or adjust your columns, use the buttons above."),
-            h6("Summary of data processing steps"),
-            h6(
-              span(icon("circle-check", style = "color: #44CDC4;")),
-              "Created dates"
+            fluidRow(
+              style = "display: flex; align-items: stretch;",
+              
+              column(
+                width = 8,
+                actionButton(ns("clear"), "Clear Data", class = "clearButton"),
+                br(),
+                h3("Your data are ready for use!", style = "color: #44CDC4"),
+                h5("Please select a tab from the side menu to explore your AMR data."),
+                h5("If you would like to select a new dataset, or adjust your columns, use the buttons above."),
+                h6("Summary of data processing steps"),
+                h6(
+                  span(icon("circle-check", style = "color: #44CDC4;")),
+                  "Formatted into long-data"
+                ),
+                h6(
+                  span(icon("circle-check", style = "color: #44CDC4;")),
+                  "Created dates"
+                ),
+                h6(
+                  span(icon("circle-check", style = "color: #44CDC4;")),
+                  "Standardized microorganism names"
+                ),
+                h6(
+                  span(icon("circle-check", style = "color: #44CDC4;")),
+                  "Standardized antimicrobial names"
+                ),
+                h6(
+                  span(icon("circle-check", style = "color: #44CDC4;")),
+                  "Assigned classes to antimicrobials"
+                )
+              ),
+              
+              column(
+                width = 4,
+                style = "display: flex; flex-direction: column; justify-content: flex-end;",
+                
+                wellPanel(
+                  h4("Combine another cleaned file"),
+                  fileInput(
+                    inputId = ns("combineUploader"),
+                    label   = "Upload another cleaned file",
+                    accept  = c(".parquet")
+                  ),
+                  actionButton(ns("combineSubmit"), "Combine", class = "dataSaveButton", style = "margin-top: -20px"),
+                  class = "contentWell", style = "margin-top: 75px"
+                )
+              )
             ),
-            h6(
-              span(icon("circle-check", style = "color: #44CDC4;")),
-              "Standardized microorganism names"
-            ),
-            h6(
-              span(icon("circle-check", style = "color: #44CDC4;")),
-              "Standardized antimicrobial names"
-            ),
-            h6(
-              span(icon("circle-check", style = "color: #44CDC4;")),
-              "Assigned classes to antimicrobials"
-            ),
+            
             br(),
             h4("Preview of Cleaned Data"),
             wellPanel(
               div(
+                h5(HTML(paste("<font color = #44CDC4>", format(nrow(cleanedData()), big.mark = ","), "</font> rows")), align = "left"),
                 DTOutput(ns("cleanedDataPreview"))
               ),
               class = "dataPreviewWell"
             ),
             downloadButton(ns("downloadCleanedData"), "Download Cleaned Data", class = "dataSaveButton")
+            
           )
           
         } else {
@@ -398,26 +427,42 @@ importDataServer <- function(id) {
     })
     
     output$rawDataPreview2 <- renderDT({
-      data <- head(upload$content, 1)
-      data_with_colnames <- rbind(colnames(upload$content), data)
-      colnames(data_with_colnames) <- seq(1, ncol(data_with_colnames))
+      abColsVal <- input$abCols
+      col_indices <- numeric(0)
       
-      col_highlight <- as.integer(input$abCols[1]):as.integer(input$abCols[2])
+      if (!is.null(abColsVal) && nchar(trimws(abColsVal)) > 0) {
+        col_indices <- parseColSpec(abColsVal)
+      }
       
-      datatable(data_with_colnames,
-                options = list(
-                  pageLength = 5,
-                  dom = 't',  # 't' stands for the table only (removes all controls)
-                  ordering = FALSE,  # Disables sorting
-                  searching = FALSE,  # Disables search box
-                  paging = FALSE,  # Disables pagination
-                  info = FALSE  # Disables the information display (like "Showing 1 to 5 of 10 entries")
-                )) %>%
-        formatStyle(
-          columns = col_highlight, 
-          backgroundColor = "#44CDC4",
-          fontWeight = "bold"
+      valid_cols  <- seq_len(ncol(upload$content))
+      col_indices <- intersect(col_indices, valid_cols)
+      
+      data_preview         <- head(upload$content, 1)
+      data_with_colnames   <- rbind(colnames(upload$content), data_preview)
+      colnames(data_with_colnames) <- seq_len(ncol(data_with_colnames))
+      
+      dt <- datatable(
+        data_with_colnames,
+        options = list(
+          pageLength = 5,
+          dom        = 't',
+          ordering   = FALSE, 
+          searching  = FALSE,
+          paging     = FALSE,
+          info       = FALSE
         )
+      )
+      
+      if (length(col_indices) > 0) {
+        dt <- dt %>%
+          formatStyle(
+            columns         = col_indices,
+            backgroundColor = "#44CDC4",
+            fontWeight      = "bold"
+          )
+      }
+      
+      dt
     })
     
 
@@ -479,7 +524,6 @@ importDataServer <- function(id) {
       }
     })
     
-
 # Wide-data modal logic ---------------------------------------------------
     output$abColsUI <- renderUI({
       if (is.null(input$dataFormat)) {
@@ -502,14 +546,10 @@ importDataServer <- function(id) {
           
           div(
             style = "width: 100%;",
-            numericRangeInput(
-              ns("abCols"), 
-              "Select the columns containing your test results:", 
-              min = 1, 
-              max = ncol(upload$content), 
-              value = c(1, ncol(upload$content)), 
-              separator = " to ", 
-              step = 1
+            textInput(
+              inputId = ns("abCols"),
+              label   = "Select columns containing your test results (e.g. 1,3,5,6-12)",
+              value   = NULL
             )
           ),
           
@@ -550,9 +590,20 @@ importDataServer <- function(id) {
       ))
       req(reactiveData())
       data <- reactiveData()
+      
+      abColsVal <- input$abCols
+      col_indices <- numeric(0)
+      
+      if (!is.null(abColsVal) && nchar(trimws(abColsVal)) > 0) {
+        col_indices <- parseColSpec(abColsVal)
+      }
+      
+      valid_cols  <- seq_len(ncol(upload$content))
+      col_indices <- intersect(col_indices, valid_cols)
+      
       long_df <- data %>%
         pivot_longer(
-          cols = input$abCols[1]:input$abCols[2], 
+          cols = col_indices, 
           names_to = "Antimicrobial",
           values_to = "Value"
         )
@@ -691,6 +742,37 @@ importDataServer <- function(id) {
         nanoparquet::write_parquet(data, metadata = verified, file)
       }
     )
+    
+    observeEvent(input$combineSubmit, {
+      
+      if (is.null(input$combineUploader)) {
+        showModal(modalDialog(
+          title = "Error",
+          "Please select a file to be combined.",
+          easyClose = TRUE
+        ))
+        return(NULL)
+      }
+      
+      parquet_file <- read_parquet(input$combineUploader$datapath)
+      metadata     <- parquet_metadata(input$combineUploader$datapath)
+      
+      verified_val <- metadata$file_meta_data$key_value_metadata[[1]]$value[metadata$file_meta_data$key_value_metadata[[1]]$key == "verified"]
+      
+      if (length(verified_val) > 0 && verified_val == "TRUE") {
+        
+        combined_df <- dplyr::bind_rows(cleanedData(), parquet_file)
+        cleanedData(combined_df)
+        
+      } else {
+
+        showModal(modalDialog(
+          title = "Error",
+          "This file has not been previously cleaned. Please process all files before attepting to combine.",
+          easyClose = TRUE
+        ))
+      }
+    })
     
     
     return(

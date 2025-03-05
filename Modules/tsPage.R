@@ -24,20 +24,24 @@ tsPageUI <- function(id, data) {
       column(3,
              filterPanelUI(ns("filters")),
              
-             # Legend ------------------------------------------------------------------
+             # Controls ------------------------------------------------------------------
              
-             wellPanel(
-               h4("Plot Controls", class = "legend-title"),
-               radioGroupButtons(ns("tsType"), "Smoothing",
-                 choices = c("None", "Rolling Mean", "LOWESS"),
-                 direction = "vertical",
-                 selected = "None",
-                 justified = TRUE
-               ),
-               uiOutput(ns("additionalControls")),
-               class = "legendWell"
+             bsCollapse(
+               id = "collapsePanel",
+               open = NULL,
+               multiple = T,
+               bsCollapsePanel(
+                 HTML("Controls <span class='glyphicon glyphicon-chevron-down' data-toggle='collapse-icon' 
+            style='float: right; color: #aaa;'></span>"),
+                 radioGroupButtons(ns("tsType"), "Smoothing",
+                                   choices = c("None", "Rolling Mean", "LOWESS"),
+                                   direction = "vertical",
+                                   selected = "None",
+                                   justified = TRUE
+                 ),
+                 uiOutput(ns("additionalControls"))
+               )
              )
-             
       )
     ),
     tags$script(HTML(

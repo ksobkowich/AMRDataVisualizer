@@ -586,6 +586,22 @@ h6{
   color: white;
   background-color: #44CDC4;
   border-color: white;
-  font-size: 12px;
+  font-size: 14px;
   margin-top: 10px;
+}
+
+.panel-group .panel {
+    margin-bottom: 0;
+    margin-top: 10px;
+    border-radius: 10px;
+    border: 1px solid #44CDC4;
+}
+
+.panel-default>.panel-heading {
+    color: #34435a;
+    background-color: #FFFFFF;
+    border: 0px;
+    border-radius: 10px;
+    font-size: 18px;
+    text-align: center;
 }
