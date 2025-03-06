@@ -69,6 +69,11 @@ abPageServer <- function(id, data) {
     abType <- reactiveVal("Classic")
     lowCounts <- reactiveVal("Include")
     yVar <- reactiveVal("Microorganism")
+    sortBy <- reactiveVal("Frequency")
+    numAb <- reactiveVal(15)
+    splitGram <- reactiveVal(FALSE)
+    splitData <- reactiveVal()
+    plot2 <- reactiveVal()
     
     observeEvent(input$applyControl, {
       showColors(input$abColors)
@@ -76,13 +81,16 @@ abPageServer <- function(id, data) {
       aggByGenus(input$aggGenus)
       lowCounts(input$handleLowCount)
       yVar(input$yVar)
+      sortBy(input$sortBy)
+      numAb(input$numAb)
+      splitGram(input$splitGram)
     })
     
     
     # Render Legend -----------------------------------------------------------
     output$legend <- renderUI({
       
-      if(abType() == "Visual"){
+      if(abType() == "Simplified"){
         
         # Visual Legend -----------------------------------------------------------
         wellPanel(
@@ -175,17 +183,34 @@ abPageServer <- function(id, data) {
             HTML("Controls <span class='glyphicon glyphicon-chevron-down' data-toggle='collapse-icon' 
             style='float: right; color: #aaa;'></span>"),         
             selectizeInput(ns("yVar"), "Y-axis variable", selected = "Microorganism", choices = c("Microorganism", "Source")),
-            radioGroupButtons(ns("abType"), label = "Antibiogram style:", selected = "Classic", choices = c("Classic", "Visual")),
+            
+            conditionalPanel(
+              condition = sprintf("input['%s'] == 'Microorganism'", ns("yVar")), 
+              selectizeInput(ns("sortBy"), "Sort by", selected = "Frequency", choices = c("Alphabetical", "Frequency", "Gram Stain")),
+            ),
+            
+            conditionalPanel(
+              condition = sprintf("input['%s'] == 'Source'", ns("yVar")), 
+              selectizeInput(ns("sortBy"), "Sort by", selected = "Frequency", choices = c("Alphabetical", "Frequency")),
+            ),
+            
+            radioGroupButtons(ns("abType"), label = "Antibiogram style:", selected = "Classic", choices = c("Classic", "Simplified")),
             radioGroupButtons(ns("handleLowCount"), label = "Handle low-count (<30) results", selected = "Include", choices = c("Include", "Exclude")),
+            numericInput(ns("numAb"), "Maximum Rows", value = 15, step = 1, min = 1, max = 30),
             
             conditionalPanel(
               condition = sprintf("input['%s'] == 'Classic'", ns("abType")), 
-              materialSwitch(ns("abColors"), label = "Show colors?", value = TRUE)
+              materialSwitch(ns("abColors"), label = "Show colors", value = TRUE)
             ),
             
             conditionalPanel(
               condition = sprintf("input['%s'] == 'Microorganism'", ns("yVar")), 
-              materialSwitch(ns("aggGenus"), label = "Aggregate by Genus?", value = F)
+              materialSwitch(ns("aggGenus"), label = "Aggregate by Genus", value = F)
+            ),
+            
+            conditionalPanel(
+              condition = sprintf("input['%s'] == 'Microorganism'", ns("yVar")), 
+              materialSwitch(ns("splitGram"), label = "Split by Gram Stain", value = F)
             ),
             
             actionButton(ns("applyControl"), "Apply", class = "submitButton")
@@ -206,8 +231,21 @@ abPageServer <- function(id, data) {
           wellPanel(
             style = "overflow-x: scroll; overflow-y: scroll; max-height: 80vh;",
             div(
-              style = paste0("min-width: 900px;"),
-              withSpinner(plotlyOutput(ns("plot"), height = "750px"), type = 4, color = "#44CDC4")
+              if(abType() == "Classic"){
+                if(splitGram() == TRUE && yVar() == "Microorganism"){
+                  tagList(
+                    h4("Gram Negative"),
+                    withSpinner(DTOutput(ns("classicAB")), type = 4, color = "#44CDC4"),
+                    hr(),
+                    h4("Gram Positive"),
+                    withSpinner(DTOutput(ns("classicAB2")), type = 4, color = "#44CDC4")
+                  )
+                } else {
+                  withSpinner(DTOutput(ns("classicAB")), type = 4, color = "#44CDC4")
+                }
+              } else {
+                withSpinner(plotlyOutput(ns("plot"), height = "750px"), type = 4, color = "#44CDC4")
+              }
             ),
             class = "contentWell"
           ),
@@ -254,9 +292,7 @@ abPageServer <- function(id, data) {
       result_table <- plotData() %>%
         filter(Interpretation %in% c("S", "R", "I")) %>%
         mutate(
-          # Convert "S" to 1, everything else to 0
           Interpretation = ifelse(Interpretation == "S", 1, 0),
-          # Conditionally switch to mo_genus() if aggByGenus() is TRUE
           Microorganism  = if (aggByGenus()) mo_genus(Microorganism) else Microorganism
         ) %>% 
         group_by(!!sym(yVar)) %>%
@@ -264,7 +300,7 @@ abPageServer <- function(id, data) {
         ungroup() %>%
         {
           if (n_distinct(.[[yVar]]) > 1) {
-            filter(., Frequency > min(tail(sort(unique(.$Frequency)), 15)))
+            filter(., Frequency >= min(tail(sort(unique(.$Frequency)), numAb())))
           } else {
             .
           }
@@ -295,8 +331,8 @@ abPageServer <- function(id, data) {
         mutate(Antimicrobial = as.ab(Antimicrobial)) %>% 
         pull(Antimicrobial)
       
-      # Visual AB ---------------------------------------------------------------
-      if(abType() == "Visual"){
+      # Simplified AB ---------------------------------------------------------------
+      if(abType() == "Simplified"){
         
         if(lowCounts() == "Exclude") {
           result_table <- result_table %>% 
@@ -364,173 +400,310 @@ abPageServer <- function(id, data) {
         
         # Classic AB --------------------------------------------------------------
       } else {
-        
-        full_table <- result_table %>%
-          select(!!sym(yVar), Antimicrobial) %>%
-          distinct() %>%
-          expand(!!sym(yVar), Antimicrobial)
-        
-        classicAB_table <- full_table %>%
-          left_join(result_table, by = c(yVar, "Antimicrobial"))
-        
-        classicAB_table <- classicAB_table %>%
-          mutate(
-            obs = ifelse(is.na(obs), 0, obs),
-            size = ifelse(is.na(size), "x", size),
-            size = ifelse(obs < 30, "x", size),
-            Class = ab_group(Antimicrobial)
+          
+          df_wide <- result_table %>%
+            select(!!sym(yVar), Antimicrobial, prop, obs) %>%
+            mutate(prop = round(prop * 100, 0)) %>% 
+            
+            {
+              if (lowCounts() == "Exclude") {
+                filter(., obs >= 30)
+              } else {
+                .
+              }
+            } %>%
+            
+            pivot_wider(
+              id_cols     = !!sym(yVar),
+              names_from  = Antimicrobial,
+              values_from = c(prop, obs),
+              names_sep   = "_"
+            ) %>% 
+            rowwise() %>%
+            mutate(`n =` = paste0(
+              "(",
+              min(c_across(starts_with("obs_")), na.rm = TRUE),
+              " - ",
+              max(c_across(starts_with("obs_")), na.rm = TRUE),
+              ")"
+            )) %>%
+            ungroup() %>%
+            select(!!sym(yVar), `n =`, everything())
+          
+          n_total <- ncol(df_wide)
+          n_drug   <- (n_total - 2) / 2
+          
+          colnames(df_wide) <- gsub("prop_", "", colnames(df_wide))
+          obs_cols <- which(grepl("obs_", names(df_wide)))
+          
+          drug_names <- names(df_wide)[3:(n_drug + 2)]
+          drug_classes <- ab_group(drug_names)
+          drug_group_list <- split(seq_along(drug_names), drug_classes)
+          
+          drug_class_starts <- sapply(drug_group_list, function(x) min(x)) + 1
+          
+          drug_targets <- 2:(n_drug + 2)
+          
+          combined_js <- JS(paste0(
+            "function(td, cellData, rowData, row, col) {",
+            "  var n_drug = (rowData.length - 2) / 2;",
+            "  var obsIndex = col + n_drug;",
+            "  var obsValue = parseFloat(rowData[obsIndex]);",
+            "  var cellValue = parseFloat(cellData);",
+            "  var tooltipText = '';",
+            "  var showColors = ", tolower(as.character(showColors())), ";",
+            
+            "  if (!isNaN(obsValue)) {",
+            "    tooltipText = 'Observations: ' + obsValue;",
+            "  }",
+            
+            "  $(td).attr('title', tooltipText);",
+            
+            "  if (!isNaN(obsValue) && obsValue >= 30 && showColors === true) {",
+            "    if (!isNaN(cellValue)) {",
+            "      if (cellValue < 70) {",
+            "        $(td).css({'background-color': '#D73027', 'color': 'white'});",
+            "      } else if (cellValue < 90) {",
+            "        $(td).css({'background-color': '#FEE08B'});",
+            "      } else if (cellValue >= 90) {",
+            "        $(td).css({'background-color': '#44CDC4', 'color': 'white'});",
+            "      }",
+            "    }",
+            "  }",
+            
+            "  var drug_class_starts = [", paste(drug_class_starts, collapse = ","), "];",
+            "  if (drug_class_starts.includes(col)) {",
+            "    $(td).css({'border-left': '3px dashed black'});",
+            "  }",
+            "}"
+          ))
+          
+          df_wide <- switch(
+            sortBy(),
+            "Frequency" = df_wide %>%
+              rowwise() %>%
+              mutate(total_obs = sum(c_across(starts_with("obs_")), na.rm = TRUE)) %>%
+              ungroup() %>%
+              arrange(desc(total_obs)) %>%
+              select(-total_obs),
+            "Alphabetical" = df_wide %>% arrange(!!sym(yVar)),
+            "GramStain" = df_wide %>%
+              mutate(gram = mo_gramstain(yVar)) %>%
+              arrange(gram, !!sym(yVar)),
+            df_wide
           )
-        
-        if(lowCounts() == "Exclude"){
-          classicAB_table <- classicAB_table %>% 
-            mutate(prop = ifelse(size == "x", NA, prop),
-                   obs = ifelse(size == "x", 0, obs)
-            )
-        }
-        
-        if(yVar == "Microorganism" && aggByGenus() == F){
-          classicAB_table <- classicAB_table %>% 
-            mutate(
-              Gram = coalesce(mo_gramstain(Microorganism), "Unknown"),
-              short_form = shorten_bacteria_names(Microorganism),
-              short_form = factor(short_form, 
-                                  levels = unique(classicAB_table %>%
-                                                    arrange(Gram, short_form) %>%
-                                                    pull(short_form)))
-            )
           
-          gram_count1 <- classicAB_table %>%
-            select(Microorganism, Gram) %>%
-            distinct() %>%
-            group_by(Gram) %>%
-            summarize(Count = n()) %>% 
-            filter(Gram == "Gram-negative") %>%
-            pull(Count)
+          if(splitGram() == T && yVar == "Microorganism"){
+            df_wide_neg <- df_wide %>%
+              mutate(gram = mo_gramstain(Microorganism)) %>%
+              filter(gram == "Gram-negative") %>%
+              select(-gram)
+            
+            df_wide_pos <- df_wide %>%
+              mutate(gram = mo_gramstain(Microorganism)) %>%
+              filter(gram == "Gram-positive") %>%
+              select(-gram)
           
-          gram_count2 <- classicAB_table %>%
-            select(Microorganism, Gram) %>%
-            distinct() %>%
-            group_by(Gram) %>%
-            summarize(Count = n()) %>% 
-            filter(Gram == "Gram-positive") %>%
-            pull(Count)
-          
-          uniqueMO <- result_table %>% 
-            select(Microorganism) %>% 
-            distinct() %>% 
-            nrow()
-          
-          gram_line1 = ifelse(is.integer(gram_count1) && length(gram_count1) == 0L, 0, gram_count1 + 0.5)
-          gram_line2 = ifelse(is.integer(gram_count2) && length(gram_count2) == 0L || gram_count1 + gram_count2 == uniqueMO, 0, gram_count1 + gram_count2 + 0.5)
-          
-        } else {
-          
-          classicAB_table <- classicAB_table %>% 
-            mutate(
-              short_form = ifelse(str_length(.[[yVar]]) > 15, 
-                                  str_c(str_sub(.[[yVar]], 1, 15), "..."), 
-                                  .[[yVar]]),
-              short_form = factor(short_form, 
-                                  levels = unique(classicAB_table %>%
-                                                    arrange(short_form) %>%
-                                                    pull(short_form)))
-            )
-          
-        }
-        
-        classicAB_table <- classicAB_table %>% 
-          group_by(!!sym(yVar)) %>% 
-          mutate(obs_range = paste0("(n = ", min(obs[obs > 0]), " - ", max(obs), ")"),
-                 short_form = paste0(short_form, "\n", obs_range))
-        
-        if(showColors() == TRUE){
-          color_palette <- c("1" = "#D73027", "2" = "#FEE08B", "3" = "#44CDC4", "x" = "white")
-        } else {
-          color_palette <- c("1" = "white", "2" = "white", "3" = "white", "x" = "white")
-        }
-        
-        plot_list <- classicAB_table %>% 
-          split(.$Class) %>% 
-          lapply(function(data) {
-            ggplot(data, aes(x = interaction(Antimicrobial, Class), 
-                             y = short_form, 
-                             fill = size,
-                             text = paste(
-                               yVar, !!sym(yVar), 
-                               if (yVar == "Microorganism" & aggByGenus() == F) {
-                                 paste("<br>Gram-stain:", Gram)
-                               } else {
-                                 ""
-                               },
-                               "<br>Antimicrobial: ", Antimicrobial,
-                               "<br>Class: ", Class,
-                               "<br>Observations: ", obs,
-                               "<br>Proportion: ", round(prop * 100, 2), "%"
-                             ))) +
-              geom_tile(color = "grey90", size = 0.2) +
-              geom_text(size = 3, color = "grey20", check_overlap = T,
-                        aes(label = round(prop * 100, 0))) +
-              { 
-                if(yVar == "Microorganism" & aggByGenus() == F) {
-                  list(
-                    geom_hline(yintercept = gram_line1, color = "grey20", size = 0.5),
-                    geom_hline(yintercept = gram_line2, color = "grey20", size = 0.5)
-                  )
-                } else {
-                  NULL
-                }
-              } +
-              scale_x_discrete(label = ifelse(str_length(unique(data$Antimicrobial)) > 15, str_c(str_sub(unique(data$Antimicrobial), 1, 15), "..."), unique(data$Antimicrobial))) + 
-              #scale_y_discrete(label = paste0(short_form, "\n", obs_range)) +
-              scale_fill_manual(values = color_palette) +
-              labs(title = "", x = "", y = "") +
-              theme_minimal() + 
-              theme(
-                legend.position = "none",
-                panel.background = element_rect(fill = 'transparent'),
-                panel.border = element_rect(colour = "grey20", fill = 'transparent', linewidth = 1.1),
-                plot.background = element_rect(fill = 'white', color = NA),
-                panel.grid.major = element_blank(),
-                panel.grid.minor = element_blank(),
-                axis.text.y = element_text(colour = "grey20"),
-                axis.text.x = element_text(angle = 90, hjust = 1, color = "grey20"),
-                strip.text.x = element_blank(),
-                panel.spacing.x = unit(0, "mm")
+          negTable <- datatable(
+            df_wide_neg,
+            rownames = FALSE,
+            class = "cell-border",
+            extensions = "FixedColumns",
+            options = list(
+              autoWidth = TRUE,
+              scrollX = TRUE,
+              scrollY = "350px",
+              scrollCollapse = TRUE,
+              fixedHeader = TRUE,
+              dom = 't',
+              fixedColumns = list(leftColumns = 2),
+              paging = FALSE,
+              ordering = FALSE,
+              columnDefs = list(
+                list(targets = obs_cols - 1, visible = FALSE),
+                list(targets = drug_targets, createdCell = combined_js),
+                list(targets = drug_targets, width = '15px'),
+                list(
+                  targets = 0:1,
+                  createdCell = JS("function(td, cellData, rowData, row, col) {
+          $(td).css({
+            'max-width': '150px',
+            'white-space': 'nowrap',
+            'overflow': 'hidden',
+            'text-overflow': 'ellipsis'
+          });
+        }")
+                )
+              ),
+              headerCallback = JS(
+                "function(thead, data, start, end, display) {",
+                "  var $ths = $(thead).find('th');",
+                "  var betterCells = [];",
+                "  $ths.each(function(index) {",
+                "    var cell = $(this);",
+                "    if (index === 0 || index === 1) {",
+                "      betterCells.push(cell.html());",
+                "    } else {",
+                "      var newDiv = $('<div>', {style: 'height: auto; width: 10px; transform: rotate(-90deg); white-space: nowrap;'});",
+                "      var newInnerDiv = $('<div>', {text: cell.text()});",
+                "      newDiv.append(newInnerDiv);",
+                "      betterCells.push(newDiv);",
+                "    }",
+                "  });",
+                "  $ths.each(function(i) {",
+                "    $(this).html(betterCells[i]);",
+                "  });",
+                "  $(thead).find('th:first-child').html('');",
+                "  $(thead).find('th').css({",
+                "    'vertical-align': 'bottom',",
+                "    'text-align': 'center',",
+                "    'height': '120px'",
+                "  });",
+                "}"
               )
-          })
-        
-        plotly_list <- lapply(plot_list, function(p) {
-          ggplotly(p, tooltip = "text")
-        })
-        
-        class_counts <- classicAB_table %>%
-          group_by(Class) %>%
-          summarise(n = n_distinct(Antimicrobial)) %>%
-          mutate(prop_width = n / sum(n))
-        
-        widths <- class_counts$prop_width
-        
-        subplot(plotly_list, nrows = 1, widths = widths, margin = 0, shareY = TRUE) %>% 
-          config(displaylogo = FALSE,
-                 modeBarButtonsToRemove = list(
-                   'sendDataToCloud', 
-                   'autoScale2d', 
-                   'resetScale2d', 
-                   'hoverClosestCartesian', 
-                   'hoverCompareCartesian', 
-                   'zoom2d', 
-                   'pan2d', 
-                   'select2d', 
-                   'lasso2d', 
-                   'zoomIn2d', 
-                   'zoomOut2d', 
-                   'toggleSpikelines'
-                 ))
-      }
+            )
+          )
+          
+          posTable <- datatable(
+            df_wide_pos,
+            rownames = FALSE,
+            class = "cell-border",
+            extensions = "FixedColumns",
+            options = list(
+              autoWidth = TRUE,
+              scrollX = TRUE,
+              scrollY = "350px",
+              scrollCollapse = TRUE,
+              fixedHeader = TRUE,
+              dom = 't',
+              fixedColumns = list(leftColumns = 2),
+              paging = FALSE,
+              ordering = FALSE,
+              columnDefs = list(
+                list(targets = obs_cols - 1, visible = FALSE),
+                list(targets = drug_targets, createdCell = combined_js),
+                list(targets = drug_targets, width = '15px'),
+                list(
+                  targets = 0:1,
+                  createdCell = JS("function(td, cellData, rowData, row, col) {
+          $(td).css({
+            'max-width': '150px',
+            'white-space': 'nowrap',
+            'overflow': 'hidden',
+            'text-overflow': 'ellipsis'
+          });
+        }")
+                )
+              ),
+              headerCallback = JS(
+                "function(thead, data, start, end, display) {",
+                "  var $ths = $(thead).find('th');",
+                "  var betterCells = [];",
+                "  $ths.each(function(index) {",
+                "    var cell = $(this);",
+                "    if (index === 0 || index === 1) {",
+                "      betterCells.push(cell.html());",
+                "    } else {",
+                "      var newDiv = $('<div>', {style: 'height: auto; width: 10px; transform: rotate(-90deg); white-space: nowrap;'});",
+                "      var newInnerDiv = $('<div>', {text: cell.text()});",
+                "      newDiv.append(newInnerDiv);",
+                "      betterCells.push(newDiv);",
+                "    }",
+                "  });",
+                "  $ths.each(function(i) {",
+                "    $(this).html(betterCells[i]);",
+                "  });",
+                "  $(thead).find('th:first-child').html('');",
+                "  $(thead).find('th').css({",
+                "    'vertical-align': 'bottom',",
+                "    'text-align': 'center',",
+                "    'height': '120px'",
+                "  });",
+                "}"
+              )
+            )
+          )
+          
+          plot2(posTable)
+          return(negTable)
+          
+          } else {
+            
+            datatable(
+              df_wide,
+              rownames = FALSE,
+              class = "cell-border",
+              extensions = "FixedColumns",
+              options = list(
+                autoWidth = TRUE,
+                scrollX = TRUE,
+                scrollY = "750px",
+                scrollCollapse = TRUE,
+                fixedHeader = TRUE,
+                dom = 't',
+                fixedColumns = list(leftColumns = 2),
+                paging = FALSE,
+                ordering = FALSE,
+                columnDefs = list(
+                  list(targets = obs_cols - 1, visible = FALSE),
+                  list(targets = drug_targets, createdCell = combined_js),
+                  list(targets = drug_targets, width = '15px'),
+                  list(
+                    targets = 0:1,
+                    createdCell = JS("function(td, cellData, rowData, row, col) {
+          $(td).css({
+            'max-width': '150px',
+            'white-space': 'nowrap',
+            'overflow': 'hidden',
+            'text-overflow': 'ellipsis'
+          });
+        }")
+                  )
+                ),
+                headerCallback = JS(
+                  "function(thead, data, start, end, display) {",
+                  "  var $ths = $(thead).find('th');",
+                  "  var betterCells = [];",
+                  "  $ths.each(function(index) {",
+                  "    var cell = $(this);",
+                  "    if (index === 0 || index === 1) {",
+                  "      betterCells.push(cell.html());",
+                  "    } else {",
+                  "      var newDiv = $('<div>', {style: 'height: auto; width: 10px; transform: rotate(-90deg); white-space: nowrap;'});",
+                  "      var newInnerDiv = $('<div>', {text: cell.text()});",
+                  "      newDiv.append(newInnerDiv);",
+                  "      betterCells.push(newDiv);",
+                  "    }",
+                  "  });",
+                  "  $ths.each(function(i) {",
+                  "    $(this).html(betterCells[i]);",
+                  "  });",
+                  "  $(thead).find('th:first-child').html('');",
+                  "  $(thead).find('th').css({",
+                  "    'vertical-align': 'bottom',",
+                  "    'text-align': 'center',",
+                  "    'height': '120px'",
+                  "  });",
+                  "}"
+                )
+              )
+            )
+            
+          }
+          
+      } 
     })
     
     output$plot <- renderPlotly({
       plot()
+    })
+    
+    output$classicAB <- renderDT({
+      plot()
+    })
+    
+    output$classicAB2 <- renderDT({
+      plot2()
     })
     
     observeEvent(input$save_btn, {
