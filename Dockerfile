@@ -66,12 +66,12 @@ CMD ["R", "-e", "shiny::runApp('/srv/shiny-server', host = '0.0.0.0', port = 383
 
 #Run in terminal
 # cd /Users/kurtissobkowich/Git/companion_animal_amr/AMRVisualizerV2/AMRDataVisualizer
-# Build the image: docker build -t ksobkowich/amrdata-visualizer:v1.4 . --platform=linux/amd64
-# docker run --platform=linux/amd64 -d -p 3838:3838 ksobkowich/amrdata-visualizer:v1.4
-# docker push ksobkowich/amrdata-visualizer:v1.4
+# Build the image: docker build -t ksobkowich/amrdata-visualizer:v1.5 . --platform=linux/amd64
+# docker run --platform=linux/amd64 -d -p 3838:3838 ksobkowich/amrdata-visualizer:v1.5
+# docker push ksobkowich/amrdata-visualizer:v1.5
 
 #Duplicate and tag as latest
-#docker tag ksobkowich/amrdata-visualizer:v1.4 ksobkowich/amrdata-visualizer:latest
+#docker tag ksobkowich/amrdata-visualizer:v1.5 ksobkowich/amrdata-visualizer:latest
 #docker push ksobkowich/amrdata-visualizer:latest
 
 

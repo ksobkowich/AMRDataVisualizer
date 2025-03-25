@@ -9,17 +9,28 @@ preprocessMapData <- function(data) {
       mutate(Subregion = NA_character_) %>%
       filter(Region %in% uniqueRegions) %>% 
       select(Region, Subregion, geometry)
-
+    
   } else {
     
-    map <- st_read("./Data/mapFiles/USA/usa_county.shp") %>%
-      filter(Region %in% uniqueRegions) %>% 
-      select(Region, Subregion, geometry)
+    if (all(grepl("^\\d{3}$", uniqueSubregions))){
+      
+      map <- st_read("./Data/mapFiles/USA/usa_zcta3.shp") %>%
+        mutate(Region = NA_character_) %>% 
+        filter(Subregion %in% uniqueSubregions) %>% 
+        select(Region, Subregion, geometry)
+      
+    } else {
+      
+      map <- st_read("./Data/mapFiles/USA/usa_county.shp") %>%
+        filter(Region %in% uniqueRegions) %>% 
+        select(Region, Subregion, geometry)
+      
+    }
   }
-  
   return(map)
+  
 }
-
+  
 preprocessPlotData <- function(data) {
   if (is.null(data) || nrow(data) == 0) return(NULL)
   mapData <- data %>% 

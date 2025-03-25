@@ -43,14 +43,13 @@ dataCleaner <- function(rawData, additionalCols = NULL) {
       }
     }
     
-    # Fuzzy matching using agrepl
     for (key in names(interpretation_map)) {
       if (any(agrepl(value, interpretation_map[[key]], ignore.case = TRUE, max.distance = 0.2))) {
         return(key)
       }
     }
     
-    return(NA)  # Return NA if no match is found
+    return(NA) 
   }
   
   numCores <- detectCores() - 1
@@ -71,9 +70,20 @@ dataCleaner <- function(rawData, additionalCols = NULL) {
                          cleanedChunk <- chunk %>%
                            mutate(
                              ID = as.character(ID),
-                             Year = as.integer(Year),
-                             Month = ifelse(is.na(Month), 1, as.integer(Month)),
-                             Date = as.Date(paste(Year, Month, "01", sep = "-"), format = "%Y-%m-%d"),
+                             Year = if ("Year" %in% names(.)) as.integer(Year) else NA_integer_,
+                             
+                             Month = if ("Month" %in% names(.)) {
+                               ifelse(is.na(Month), 1, as.integer(Month))
+                             } else {
+                               1
+                             },
+                             
+                             Date = if("Date" %in% names(.)) {
+                               as.Date(Date, format = "%Y-%m-%d")
+                             } else {
+                               as.Date(paste(Year, Month, "01", sep = "-"), format = "%Y-%m-%d")
+                             },
+                             
                              Region = str_to_title(Region),
                              Subregion = str_to_sentence(Subregion),
                              Species = str_to_sentence(Species),

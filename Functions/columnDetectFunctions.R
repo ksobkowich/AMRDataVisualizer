@@ -14,6 +14,12 @@ detectIdColumn <- function(data) {
   detectColumnByName(data, keywords)
 }
 
+# Detect Date Column
+detectDateColumn <- function(data) {
+  keywords <- c("date", "dt", "dte")
+  detectColumnByName(data, keywords)
+}
+
 # Detect Year Column
 detectYearColumn <- function(data) {
   keywords <- c("year", "yr")

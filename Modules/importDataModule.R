@@ -21,7 +21,8 @@ importDataServer <- function(id) {
     cleanedData <- reactiveVal(NULL)
     verifiedData <- reactiveVal(NULL)
     selections <- reactiveValues(
-      idCol = NULL, 
+      idCol = NULL,
+      dateCol = NULL,
       yearCol = NULL, 
       monthCol = NULL, 
       regionCol = NULL, 
@@ -168,6 +169,7 @@ importDataServer <- function(id) {
     observe({
       req(input$sirCol)
       selections$idCol <- input$idCol
+      selections$dateCol <- input$dateCol
       selections$yearCol <- input$yearCol
       selections$monthCol <- input$monthCol
       selections$regionCol <- input$regionCol
@@ -215,8 +217,14 @@ importDataServer <- function(id) {
                        h5("Patient Information"),
                        hr(),
                        selectizeInput(ns("idCol"), "ID", choices = c("Not Present", names(reactiveData())), selected = selections$idCol),
-                       selectizeInput(ns("yearCol"), "Year", choices = c("Not Present", names(reactiveData())), selected = selections$yearCol),
-                       selectizeInput(ns("monthCol"), "Month", choices = c("Not Present", names(reactiveData())), selected = selections$monthCol),
+                       selectizeInput(ns("dateCol"), "Date", choices = c("Not Present", names(reactiveData())), selected = selections$dateCol),
+                       
+                       conditionalPanel(
+                         condition = sprintf("input['%s'] == 'Not Present'", ns("dateCol")),
+                         selectizeInput(ns("yearCol"), "Year", choices = c("Not Present", names(reactiveData())), selected = selections$yearCol),
+                         selectizeInput(ns("monthCol"), "Month", choices = c("Not Present", names(reactiveData())), selected = selections$monthCol)
+                       ),
+                       
                        selectizeInput(ns("regionCol"), "Region", choices = c("Not Present", names(reactiveData())), selected = selections$regionCol),
                        selectizeInput(ns("subregionCol"), "Subregion", choices = c("Not Present", names(reactiveData())), selected = selections$subregionCol),
                        selectizeInput(ns("speciesCol"), "Species", choices = c("Not Present", names(reactiveData())), selected = selections$speciesCol),
@@ -258,7 +266,7 @@ importDataServer <- function(id) {
         selections$drugCol, selections$idCol, selections$micSignCol, selections$micValCol, 
         selections$moCol, selections$monthCol, selections$regionCol, selections$selectedBreakpoint, 
         selections$sirCol, selections$sourceCol, selections$speciesCol, selections$subregionCol, 
-        selections$valueType, selections$yearCol
+        selections$valueType, selections$yearCol, selections$dateCol
       )
       unassignedColumns <- setdiff(allColumns, assignedColumns)
 
@@ -423,7 +431,14 @@ importDataServer <- function(id) {
 
 # Preview raw data --------------------------------------------------------
     output$rawDataPreview <- renderTable({
-      head(upload$content, 100)
+      
+      rawData <- head(upload$content, 100)
+      
+      rawData <- rawData %>% 
+        mutate(across(everything(), as.character))
+      
+      rawData
+
     })
     
     output$rawDataPreview2 <- renderDT({
@@ -479,6 +494,7 @@ importDataServer <- function(id) {
     observeEvent(upload$content, {
       req(upload$content)
       selections$idCol <- detectIdColumn(upload$content) %||% "Not Present"
+      selections$dateCol <- detectDateColumn(upload$content) %||% "Not Present"
       selections$yearCol <- detectYearColumn(upload$content) %||% "Not Present"
       selections$monthCol <- detectMonthColumn(upload$content) %||% "Not Present"
       selections$regionCol <- detectRegionColumn(upload$content) %||% "Not Present"
@@ -629,26 +645,51 @@ importDataServer <- function(id) {
         if(colName %in% names(data) && !is.null(colName) && colName != "Not Present") {
           return(data[[colName]])
         } else {
-          return(rep(NA, nrow(data)))  # Return NA if the column doesn't exist
+          return(rep(NA, nrow(data)))
         }
       }
+      
+      date_present <- selections$dateCol != "Not Present"
 
-      formattedDataFrame <- data.frame(
-        ID = safeExtract(selections$idCol),
-        Year = safeExtract(selections$yearCol),
-        Month = safeExtract(selections$monthCol),
-        Region = safeExtract(selections$regionCol),
-        Subregion = safeExtract(selections$subregionCol),
-        Species = safeExtract(selections$speciesCol),
-        Source = safeExtract(selections$sourceCol),
-        Microorganism = safeExtract(selections$moCol),
-        Antimicrobial = safeExtract(selections$drugCol)
+      column_list <- list(
+        ID = safeExtract(selections$idCol)
       )
+      
+      if (selections$dateCol != "Not Present") {
+        column_list <- append(
+          column_list,
+          list(Date = safeExtract(selections$dateCol)),
+          after = 1
+        )
+      } else {
+        column_list <- append(
+          column_list,
+          list(
+            Year = safeExtract(selections$yearCol),
+            Month = safeExtract(selections$monthCol)
+          ),
+          after = 1
+        )
+      }
+      
+      column_list <- append(
+        column_list,
+        list(
+          Region = safeExtract(selections$regionCol),
+          Subregion = safeExtract(selections$subregionCol),
+          Species = safeExtract(selections$speciesCol),
+          Source = safeExtract(selections$sourceCol),
+          Microorganism = safeExtract(selections$moCol),
+          Antimicrobial = safeExtract(selections$drugCol)
+        )
+      )
+      
+      formattedDataFrame <- as.data.frame(column_list)
       
       # Add the additional columns if selected
       if (!is.null(selections$additionalCols) && length(selections$additionalCols) > 0) {
         for (col in selections$additionalCols) {
-          formattedDataFrame[[col]] <- safeExtract(col)  # Add each additional column to the data frame
+          formattedDataFrame[[col]] <- safeExtract(col)
         }
       }
       
@@ -671,7 +712,7 @@ importDataServer <- function(id) {
         return(NULL)
       }
       
-      required_cols <- c("Year", "Region", "Species", "Source", "Microorganism", "Antimicrobial")
+      required_cols <- c("Region", "Species", "Source", "Microorganism", "Antimicrobial")
       if (selections$valueType == "SIR") {
         required_cols <- c(required_cols, "Interpretation")
       } else {
@@ -683,7 +724,6 @@ importDataServer <- function(id) {
       if (selections$valueType == "SIR") {
         filteredData <- data %>%
           filter(
-            !is.na(Year),
             !is.na(Region),
             !is.na(Species),
             !is.na(Source),
@@ -694,7 +734,6 @@ importDataServer <- function(id) {
       } else {
         filteredData <- data %>%
           filter(
-            !is.na(Year),
             !is.na(Region),
             !is.na(Species),
             !is.na(Source),
@@ -715,8 +754,16 @@ importDataServer <- function(id) {
     
     output$availableDataPreview <- renderTable({
       req(availableData())
-      head(availableData(), 100)
+      availableData <- availableData()
+      
+      if ("Date" %in% names(availableData)) {
+        availableData <- availableData %>%
+          mutate(Date = as.character(Date))
+      }
+      
+      head(availableData, 100)
     })
+    
     
     output$cleanedDataPreview <- renderDT({
       req(cleanedData())
