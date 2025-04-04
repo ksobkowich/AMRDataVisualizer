@@ -26,29 +26,7 @@ abPageUI <- function(id, data) {
              uiOutput(ns("legend"))
              
       )
-    ),
-    
-    
-    # Save Plot Logic ---------------------------------------------------------
-    tags$script(HTML(
-      "
-      Shiny.addCustomMessageHandler('savePlot', function(data) {
-        var plotElement = document.getElementById(data.plotId); // Target the plot by id
-        if (plotElement) {
-          // Download image with specified width, height, and scale
-          Plotly.downloadImage(plotElement, {
-            format: 'png', // File format
-            filename: data.filename, // Filename for download
-            width: data.width,  // Custom width
-            height: data.height, // Custom height
-            scale: data.scale // Resolution scaling factor (default is 1, larger values improve quality)
-          });
-        } else {
-          console.error('Plot element not found for id: ' + data.plotId);
-        }
-      });
-      "
-    ))
+    )
     
   )
 }
@@ -57,12 +35,15 @@ abPageServer <- function(id, data) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
     
-    filteredData <-  filterPanelServer("filters", 
-                                       data, 
-                                       default_filters = c("Microorganism", "WHO AWaRe Class:", "Species", "Source", "Date"), 
-                                       auto_populate = list())
+    filters <- filterPanelServer(
+      "filters", 
+      data, 
+      default_filters = c("Microorganism", "WHO AWaRe Class:", "Species", "Source", "Date"), 
+      auto_populate = list()
+    )
     
-    plotData <- reactive({filteredData()})
+    plotData <- reactive({ filters$filteredData() })
+    activeFilters <- reactive({ filters$activeFilters() })
     
     showColors <- reactiveVal(TRUE)
     aggByGenus <- reactiveVal(FALSE)
@@ -249,7 +230,7 @@ abPageServer <- function(id, data) {
             ),
             class = "contentWell"
           ),
-          actionButton(ns("save_btn"), "Save", class = "plotSaveButton")
+          downloadButton(ns("save_btn"), "Save", class = "plotSaveButton")
         )
         
         # Show Error Handling -----------------------------------------------------
@@ -400,109 +381,109 @@ abPageServer <- function(id, data) {
         
         # Classic AB --------------------------------------------------------------
       } else {
+        
+        df_wide <- result_table %>%
+          select(!!sym(yVar), Antimicrobial, prop, obs) %>%
+          mutate(prop = round(prop * 100, 0)) %>% 
           
-          df_wide <- result_table %>%
-            select(!!sym(yVar), Antimicrobial, prop, obs) %>%
-            mutate(prop = round(prop * 100, 0)) %>% 
-            
-            {
-              if (lowCounts() == "Exclude") {
-                filter(., obs >= 30)
-              } else {
-                .
-              }
-            } %>%
-            
-            pivot_wider(
-              id_cols     = !!sym(yVar),
-              names_from  = Antimicrobial,
-              values_from = c(prop, obs),
-              names_sep   = "_"
-            ) %>% 
+          {
+            if (lowCounts() == "Exclude") {
+              filter(., obs >= 30)
+            } else {
+              .
+            }
+          } %>%
+          
+          pivot_wider(
+            id_cols     = !!sym(yVar),
+            names_from  = Antimicrobial,
+            values_from = c(prop, obs),
+            names_sep   = "_"
+          ) %>% 
+          rowwise() %>%
+          mutate(`n =` = paste0(
+            "(",
+            min(c_across(starts_with("obs_")), na.rm = TRUE),
+            " - ",
+            max(c_across(starts_with("obs_")), na.rm = TRUE),
+            ")"
+          )) %>%
+          ungroup() %>%
+          select(!!sym(yVar), `n =`, everything())
+        
+        n_total <- ncol(df_wide)
+        n_drug   <- (n_total - 2) / 2
+        
+        colnames(df_wide) <- gsub("prop_", "", colnames(df_wide))
+        obs_cols <- which(grepl("obs_", names(df_wide)))
+        
+        drug_names <- names(df_wide)[3:(n_drug + 2)]
+        drug_classes <- ab_group(drug_names)
+        drug_group_list <- split(seq_along(drug_names), drug_classes)
+        
+        drug_class_starts <- sapply(drug_group_list, function(x) min(x)) + 1
+        
+        drug_targets <- 2:(n_drug + 2)
+        
+        combined_js <- JS(paste0(
+          "function(td, cellData, rowData, row, col) {",
+          "  var n_drug = (rowData.length - 2) / 2;",
+          "  var obsIndex = col + n_drug;",
+          "  var obsValue = parseFloat(rowData[obsIndex]);",
+          "  var cellValue = parseFloat(cellData);",
+          "  var tooltipText = '';",
+          "  var showColors = ", tolower(as.character(showColors())), ";",
+          
+          "  if (!isNaN(obsValue)) {",
+          "    tooltipText = 'Observations: ' + obsValue;",
+          "  }",
+          
+          "  $(td).attr('title', tooltipText);",
+          
+          "  if (!isNaN(obsValue) && obsValue >= 30 && showColors === true) {",
+          "    if (!isNaN(cellValue)) {",
+          "      if (cellValue < 70) {",
+          "        $(td).css({'background-color': '#D73027', 'color': 'white'});",
+          "      } else if (cellValue < 90) {",
+          "        $(td).css({'background-color': '#FEE08B'});",
+          "      } else if (cellValue >= 90) {",
+          "        $(td).css({'background-color': '#44CDC4', 'color': 'white'});",
+          "      }",
+          "    }",
+          "  }",
+          
+          "  var drug_class_starts = [", paste(drug_class_starts, collapse = ","), "];",
+          "  if (drug_class_starts.includes(col)) {",
+          "    $(td).css({'border-left': '3px dashed black'});",
+          "  }",
+          "}"
+        ))
+        
+        df_wide <- switch(
+          sortBy(),
+          "Frequency" = df_wide %>%
             rowwise() %>%
-            mutate(`n =` = paste0(
-              "(",
-              min(c_across(starts_with("obs_")), na.rm = TRUE),
-              " - ",
-              max(c_across(starts_with("obs_")), na.rm = TRUE),
-              ")"
-            )) %>%
+            mutate(total_obs = sum(c_across(starts_with("obs_")), na.rm = TRUE)) %>%
             ungroup() %>%
-            select(!!sym(yVar), `n =`, everything())
+            arrange(desc(total_obs)) %>%
+            select(-total_obs),
+          "Alphabetical" = df_wide %>% arrange(!!sym(yVar)),
+          "GramStain" = df_wide %>%
+            mutate(gram = mo_gramstain(yVar)) %>%
+            arrange(gram, !!sym(yVar)),
+          df_wide
+        )
+        
+        if(splitGram() == T && yVar == "Microorganism"){
+          df_wide_neg <- df_wide %>%
+            mutate(gram = mo_gramstain(Microorganism)) %>%
+            filter(gram == "Gram-negative") %>%
+            select(-gram)
           
-          n_total <- ncol(df_wide)
-          n_drug   <- (n_total - 2) / 2
-          
-          colnames(df_wide) <- gsub("prop_", "", colnames(df_wide))
-          obs_cols <- which(grepl("obs_", names(df_wide)))
-          
-          drug_names <- names(df_wide)[3:(n_drug + 2)]
-          drug_classes <- ab_group(drug_names)
-          drug_group_list <- split(seq_along(drug_names), drug_classes)
-          
-          drug_class_starts <- sapply(drug_group_list, function(x) min(x)) + 1
-          
-          drug_targets <- 2:(n_drug + 2)
-          
-          combined_js <- JS(paste0(
-            "function(td, cellData, rowData, row, col) {",
-            "  var n_drug = (rowData.length - 2) / 2;",
-            "  var obsIndex = col + n_drug;",
-            "  var obsValue = parseFloat(rowData[obsIndex]);",
-            "  var cellValue = parseFloat(cellData);",
-            "  var tooltipText = '';",
-            "  var showColors = ", tolower(as.character(showColors())), ";",
-            
-            "  if (!isNaN(obsValue)) {",
-            "    tooltipText = 'Observations: ' + obsValue;",
-            "  }",
-            
-            "  $(td).attr('title', tooltipText);",
-            
-            "  if (!isNaN(obsValue) && obsValue >= 30 && showColors === true) {",
-            "    if (!isNaN(cellValue)) {",
-            "      if (cellValue < 70) {",
-            "        $(td).css({'background-color': '#D73027', 'color': 'white'});",
-            "      } else if (cellValue < 90) {",
-            "        $(td).css({'background-color': '#FEE08B'});",
-            "      } else if (cellValue >= 90) {",
-            "        $(td).css({'background-color': '#44CDC4', 'color': 'white'});",
-            "      }",
-            "    }",
-            "  }",
-            
-            "  var drug_class_starts = [", paste(drug_class_starts, collapse = ","), "];",
-            "  if (drug_class_starts.includes(col)) {",
-            "    $(td).css({'border-left': '3px dashed black'});",
-            "  }",
-            "}"
-          ))
-          
-          df_wide <- switch(
-            sortBy(),
-            "Frequency" = df_wide %>%
-              rowwise() %>%
-              mutate(total_obs = sum(c_across(starts_with("obs_")), na.rm = TRUE)) %>%
-              ungroup() %>%
-              arrange(desc(total_obs)) %>%
-              select(-total_obs),
-            "Alphabetical" = df_wide %>% arrange(!!sym(yVar)),
-            "GramStain" = df_wide %>%
-              mutate(gram = mo_gramstain(yVar)) %>%
-              arrange(gram, !!sym(yVar)),
-            df_wide
-          )
-          
-          if(splitGram() == T && yVar == "Microorganism"){
-            df_wide_neg <- df_wide %>%
-              mutate(gram = mo_gramstain(Microorganism)) %>%
-              filter(gram == "Gram-negative") %>%
-              select(-gram)
-            
-            df_wide_pos <- df_wide %>%
-              mutate(gram = mo_gramstain(Microorganism)) %>%
-              filter(gram == "Gram-positive") %>%
-              select(-gram)
+          df_wide_pos <- df_wide %>%
+            mutate(gram = mo_gramstain(Microorganism)) %>%
+            filter(gram == "Gram-positive") %>%
+            select(-gram)
           
           negTable <- datatable(
             df_wide_neg,
@@ -627,30 +608,30 @@ abPageServer <- function(id, data) {
           plot2(posTable)
           return(negTable)
           
-          } else {
-            
-            datatable(
-              df_wide,
-              rownames = FALSE,
-              class = "cell-border",
-              extensions = "FixedColumns",
-              options = list(
-                autoWidth = TRUE,
-                scrollX = TRUE,
-                scrollY = "750px",
-                scrollCollapse = TRUE,
-                fixedHeader = TRUE,
-                dom = 't',
-                fixedColumns = list(leftColumns = 2),
-                paging = FALSE,
-                ordering = FALSE,
-                columnDefs = list(
-                  list(targets = obs_cols - 1, visible = FALSE),
-                  list(targets = drug_targets, createdCell = combined_js),
-                  list(targets = drug_targets, width = '15px'),
-                  list(
-                    targets = 0:1,
-                    createdCell = JS("function(td, cellData, rowData, row, col) {
+        } else {
+          
+          datatable(
+            df_wide,
+            rownames = FALSE,
+            class = "cell-border",
+            extensions = "FixedColumns",
+            options = list(
+              autoWidth = TRUE,
+              scrollX = TRUE,
+              scrollY = "750px",
+              scrollCollapse = TRUE,
+              fixedHeader = TRUE,
+              dom = 't',
+              fixedColumns = list(leftColumns = 2),
+              paging = FALSE,
+              ordering = FALSE,
+              columnDefs = list(
+                list(targets = obs_cols - 1, visible = FALSE),
+                list(targets = drug_targets, createdCell = combined_js),
+                list(targets = drug_targets, width = '15px'),
+                list(
+                  targets = 0:1,
+                  createdCell = JS("function(td, cellData, rowData, row, col) {
           $(td).css({
             'max-width': '150px',
             'white-space': 'nowrap',
@@ -658,39 +639,39 @@ abPageServer <- function(id, data) {
             'text-overflow': 'ellipsis'
           });
         }")
-                  )
-                ),
-                headerCallback = JS(
-                  "function(thead, data, start, end, display) {",
-                  "  var $ths = $(thead).find('th');",
-                  "  var betterCells = [];",
-                  "  $ths.each(function(index) {",
-                  "    var cell = $(this);",
-                  "    if (index === 0 || index === 1) {",
-                  "      betterCells.push(cell.html());",
-                  "    } else {",
-                  "      var newDiv = $('<div>', {style: 'height: auto; width: 10px; transform: rotate(-90deg); white-space: nowrap;'});",
-                  "      var newInnerDiv = $('<div>', {text: cell.text()});",
-                  "      newDiv.append(newInnerDiv);",
-                  "      betterCells.push(newDiv);",
-                  "    }",
-                  "  });",
-                  "  $ths.each(function(i) {",
-                  "    $(this).html(betterCells[i]);",
-                  "  });",
-                  "  $(thead).find('th:first-child').html('');",
-                  "  $(thead).find('th').css({",
-                  "    'vertical-align': 'bottom',",
-                  "    'text-align': 'center',",
-                  "    'height': '120px'",
-                  "  });",
-                  "}"
                 )
+              ),
+              headerCallback = JS(
+                "function(thead, data, start, end, display) {",
+                "  var $ths = $(thead).find('th');",
+                "  var betterCells = [];",
+                "  $ths.each(function(index) {",
+                "    var cell = $(this);",
+                "    if (index === 0 || index === 1) {",
+                "      betterCells.push(cell.html());",
+                "    } else {",
+                "      var newDiv = $('<div>', {style: 'height: auto; width: 10px; transform: rotate(-90deg); white-space: nowrap;'});",
+                "      var newInnerDiv = $('<div>', {text: cell.text()});",
+                "      newDiv.append(newInnerDiv);",
+                "      betterCells.push(newDiv);",
+                "    }",
+                "  });",
+                "  $ths.each(function(i) {",
+                "    $(this).html(betterCells[i]);",
+                "  });",
+                "  $(thead).find('th:first-child').html('');",
+                "  $(thead).find('th').css({",
+                "    'vertical-align': 'bottom',",
+                "    'text-align': 'center',",
+                "    'height': '120px'",
+                "  });",
+                "}"
               )
             )
-            
-          }
+          )
           
+        }
+        
       } 
     })
     
@@ -706,15 +687,96 @@ abPageServer <- function(id, data) {
       plot2()
     })
     
-    observeEvent(input$save_btn, {
-      session$sendCustomMessage("savePlot", list(
-        plotId = ns("plot"),
-        filename = paste0(Sys.Date(), "AMRVisualizerAntibiogram"),
-        width = 1200,
-        height = 800,
-        scale = 3
-      ))
-    })
-    
+    output$save_btn <- downloadHandler(
+      
+      filename = "Antibiogram.html",
+      
+      content = function(file) {
+        src <- normalizePath("./Reports/Antibiogram.qmd")
+        
+        tmp <- tempdir()
+        unlink(list.files(tmp, full.names = TRUE), recursive = TRUE, force = TRUE)
+        
+        owd <- setwd(tempdir())
+        on.exit({
+          setwd(owd)
+          unlink(c("filters.RDS", 
+                   "antibiogram_table.html", 
+                   "antibiogram_table2.html", 
+                   "antibiogram_table.png", 
+                   "antibiogram_table2.png", 
+                   "Antibiogram.qmd"), recursive = TRUE)
+        })
+        
+        file.copy(src, "Antibiogram.qmd", overwrite = TRUE)
+        
+        htmltools::save_html(plot(), "antibiogram_table.html")
+        
+        html_lines <- readLines("antibiogram_table.html")
+        
+        table_data <- plot()
+        num_columns <- ncol(table_data$x$data)
+        num_rows <- nrow(table_data$x$data)
+        col_width_px <- 25
+        row_height_px <- 25
+        vwidth <- num_columns * col_width_px + 300
+        vheight <- num_rows * row_height_px + 300
+        font_size <- max(12, 16 - 0.3 * num_columns)
+        
+        font_css <- sprintf('
+  <link href="https://fonts.googleapis.com/css2?family=Carme&display=swap" rel="stylesheet">
+  <style>
+    body, table, td, th {
+      font-family: "Carme", sans-serif !important;
+            font-size: %dpx !important;
+    }
+  </style>', round(font_size))
+        
+        html_lines <- sub("</head>", paste0(font_css, "\n</head>"), html_lines)
+        
+        writeLines(html_lines, "antibiogram_table.html")
+        
+        webshot2::webshot(
+          url = "antibiogram_table.html",
+          file = "antibiogram_table.png",
+          vwidth = vwidth,
+          vheight = vheight,
+          zoom = 2
+        )
+        
+        if (splitGram()) {
+          htmltools::save_html(plot2(), "antibiogram_table2.html")
+          html_lines2 <- readLines("antibiogram_table2.html")
+          html_lines2 <- sub("</head>", paste0(font_css, "\n</head>"), html_lines2)
+          writeLines(html_lines2, "antibiogram_table2.html")
+
+          table_data2 <- plot2()
+          num_columns2 <- ncol(table_data2$x$data)
+          num_rows2 <- nrow(table_data2$x$data)
+          vwidth2 <- num_columns2 * col_width_px + 300
+          vheight2 <- num_rows2 * row_height_px + 300
+
+          webshot2::webshot(
+            url = "antibiogram_table2.html",
+            file = "antibiogram_table2.png",
+            vwidth = vwidth2,
+            vheight = vheight2,
+            zoom = 2
+          )
+        }
+        
+        saveRDS(activeFilters(), "filters.RDS")
+        writeLines(lowCounts(), "low_counts_flag.txt")
+        
+        quarto::quarto_render(
+          input = "Antibiogram.qmd",
+          output_format = "html",
+          output_file = "Antibiogram.html"
+        )
+        
+        file.rename("Antibiogram.html", file)
+      }
+    )
+
   })
 }

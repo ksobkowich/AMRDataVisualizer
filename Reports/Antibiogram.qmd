@@ -1,0 +1,81 @@
+---
+title: "Antibiogram"
+date: today
+format:
+  html:
+    self-contained: true 
+    theme: cosmo
+---
+
+```{r setup, include=FALSE}
+filters <- readRDS("filters.RDS")
+low_counts <- readLines("low_counts_flag.txt", warn = FALSE)
+```
+
+::: {.callout-note title="Active Filters"}
+<div style= "
+line-height: 1.1;
+  white-space: normal;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  font-family: inherit;
+  font-size: 0.7rem;
+">
+
+```{r, echo=FALSE, results='asis'}
+if (length(filters) == 0) {
+  cat("<p>No filters were applied.</p>")
+} else {
+  for (name in names(filters)) {
+    cat(sprintf("<p><strong>%s:</strong> %s</p>", name, paste(filters[[name]], collapse = ", ")))
+  }
+}
+if (identical(low_counts, "Exclude")) {
+  cat("<p><em>*Less than 30 observations have been removed.</em></p>")
+}
+```
+</div>
+:::
+
+------------------------------------------------------------------------
+
+<!-- Combined or Gram Negative -->
+
+```{r, echo=FALSE, results='asis'}
+if (file.exists("antibiogram_table2.png")) {
+  html <- paste0(
+    '<h3 style="text-align: center; margin-top: 2rem;">Gram-Negative</h3>',
+    '<div style="display: flex; justify-content: center; padding: 1rem 1rem;">',
+    '<img src="antibiogram_table.png" ',
+    'style="max-width: 98vw; height: auto; width: auto; display: block;',
+    'border: 0; padding: 0.2rem;" />',
+    '</div>'
+  )
+  cat(html)
+} else {
+    html <- paste0(
+    '<div style="display: flex; justify-content: center; padding: 1rem 1rem;">',
+    '<img src="antibiogram_table.png" ',
+    'style="max-width: 98vw; height: auto; width: auto; display: block; ',
+    'border: 0; padding: 0.2rem;" />',
+    '</div>'
+  )
+  cat(html)
+}
+```
+
+<!-- Gram Positive -->
+
+```{r, echo=FALSE, results='asis'}
+if (file.exists("antibiogram_table2.png")) {
+  html <- paste0(
+    '<h3 style="text-align: center; margin-top: 2rem;">Gram-Positive</h3>',
+    '<div style="display: flex; justify-content: center; padding: 1rem 1rem;">',
+    '<img src="antibiogram_table2.png" ',
+    'style="max-width: 98vw; height: auto; width: auto; display: block; ',
+    'border: 0; padding: 0.2rem;" />',
+    '</div>'
+  )
+  cat(html)
+}
+```

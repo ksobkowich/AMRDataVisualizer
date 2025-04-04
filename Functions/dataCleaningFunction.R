@@ -78,8 +78,15 @@ dataCleaner <- function(rawData, additionalCols = NULL) {
                                1
                              },
                              
-                             Date = if("Date" %in% names(.)) {
-                               as.Date(Date, format = "%Y-%m-%d")
+                             Date = if ("Date" %in% names(.)) {
+                               lubridate::parse_date_time(
+                                 Date,
+                                 orders = c(
+                                   "ymd", "mdy", "dmy",
+                                   "m/d/y", "d/m/y",
+                                   "B d, Y", "d B Y", "d-b-Y", "d-b-y"
+                                 )
+                               ) %>% as.Date()
                              } else {
                                as.Date(paste(Year, Month, "01", sep = "-"), format = "%Y-%m-%d")
                              },
@@ -88,10 +95,12 @@ dataCleaner <- function(rawData, additionalCols = NULL) {
                              Subregion = str_to_sentence(Subregion),
                              Species = str_to_sentence(Species),
                              Source = str_to_sentence(Source),
+                             
                              # Replace antimicrobial and microorganism with precomputed names
                              Microorganism = mo_name,  # Use the precomputed mo_name
                              Antimicrobial = ab_name,  # Use the precomputed ab_name
                              Class = ab_class,         # Use the precomputed ab_class
+                             
                              Interpretation = sapply(Interpretation, normalize_interpretation)
                            ) %>%
                            select(

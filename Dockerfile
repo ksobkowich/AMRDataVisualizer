@@ -1,5 +1,5 @@
 # Use the official R image as the base image
-FROM ksobkowich/amrdata-visualizer:v1.3
+FROM ksobkowich/amrdata-visualizer:v1.6
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
@@ -29,7 +29,7 @@ RUN apt-get update && apt-get install -y \
   python3 \
   python3-pip \
   && rm -rf /var/lib/apt/lists/*
-
+  
 # Install renv package
 RUN R -e "install.packages('renv', repos='https://cran.rstudio.com/')"
 
@@ -66,12 +66,12 @@ CMD ["R", "-e", "shiny::runApp('/srv/shiny-server', host = '0.0.0.0', port = 383
 
 #Run in terminal
 # cd /Users/kurtissobkowich/Git/companion_animal_amr/AMRVisualizerV2/AMRDataVisualizer
-# Build the image: docker build -t ksobkowich/amrdata-visualizer:v1.5 . --platform=linux/amd64
-# docker run --platform=linux/amd64 -d -p 3838:3838 ksobkowich/amrdata-visualizer:v1.5
-# docker push ksobkowich/amrdata-visualizer:v1.5
+# Build the image: docker build -t ksobkowich/amrdata-visualizer:v1.6 . --platform=linux/amd64
+# docker run --platform=linux/amd64 -d -p 3838:3838 ksobkowich/amrdata-visualizer:v1.6
+# docker push ksobkowich/amrdata-visualizer:v1.6
 
 #Duplicate and tag as latest
-#docker tag ksobkowich/amrdata-visualizer:v1.5 ksobkowich/amrdata-visualizer:latest
+#docker tag ksobkowich/amrdata-visualizer:v1.6 ksobkowich/amrdata-visualizer:latest
 #docker push ksobkowich/amrdata-visualizer:latest
 
 

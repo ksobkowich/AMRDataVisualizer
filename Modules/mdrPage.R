@@ -59,16 +59,17 @@ mdrPageServer <- function(id, data) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
     
-    filteredData <- filterPanelServer("filters", data, 
-                                      default_filters = c("Microorganism", "Species", "Source", "Date"), 
-                                      auto_populate = list(Microorganism = TRUE))
+    filters <- filterPanelServer(
+      "filters", 
+      data, 
+      default_filters = c("Microorganism", "Species", "Source", "Date"), 
+      auto_populate = list(Microorganism = TRUE)
+    )
+    
+    plotData <- reactive({ filters$filteredData() })
     
     initialData <- reactive({
       data
-    })
-    
-    plotData <- reactive({
-      filteredData()
     })
     
     output$content <- renderUI({
