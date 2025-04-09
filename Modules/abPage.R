@@ -435,7 +435,7 @@ abPageServer <- function(id, data) {
           "  var showColors = ", tolower(as.character(showColors())), ";",
           
           "  if (!isNaN(obsValue)) {",
-          "    tooltipText = 'Observations: ' + obsValue;",
+          "    tooltipText = 'Number of tests: ' + obsValue;",
           "  }",
           
           "  $(td).attr('title', tooltipText);",
