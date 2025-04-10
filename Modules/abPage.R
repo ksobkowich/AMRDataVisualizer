@@ -3,7 +3,6 @@ abPageUI <- function(id, data) {
   tagList(
     fluidRow(
       
-      
       # Main Content ------------------------------------------------------------
       
       column(9,
@@ -38,7 +37,7 @@ abPageServer <- function(id, data) {
     filters <- filterPanelServer(
       "filters", 
       data, 
-      default_filters = c("Microorganism", "WHO AWaRe Class:", "Species", "Source", "Date"), 
+      default_filters = c("Microorganism", "Suppress Antimicrobials", "Species", "Source", "Date"), 
       auto_populate = list()
     )
     
@@ -55,6 +54,8 @@ abPageServer <- function(id, data) {
     splitGram <- reactiveVal(FALSE)
     splitData <- reactiveVal()
     plot2 <- reactiveVal()
+    table1 <- reactiveVal()
+    table2 <- reactiveVal()
     
     observeEvent(input$applyControl, {
       showColors(input$abColors)
@@ -210,10 +211,11 @@ abPageServer <- function(id, data) {
         # Show Plot ---------------------------------------------------------------
         tagList(
           wellPanel(
-            style = "overflow-x: scroll; overflow-y: scroll; max-height: 80vh;",
+            style = "overflow-x: scroll; overflow-y: scroll; max-height: 80vh; min-width: 600px;",
             div(
-              if(abType() == "Classic"){
-                if(splitGram() == TRUE && yVar() == "Microorganism"){
+              class = "ab-table-wrapper",
+              if (abType() == "Classic") {
+                if (splitGram() == TRUE && yVar() == "Microorganism") {
                   tagList(
                     h4("Gram Negative"),
                     withSpinner(DTOutput(ns("classicAB")), type = 4, color = "#44CDC4"),
@@ -222,7 +224,7 @@ abPageServer <- function(id, data) {
                     withSpinner(DTOutput(ns("classicAB2")), type = 4, color = "#44CDC4")
                   )
                 } else {
-                  withSpinner(DTOutput(ns("classicAB")), type = 4, color = "#44CDC4")
+                  DTOutput(ns("classicAB"))
                 }
               } else {
                 withSpinner(plotlyOutput(ns("plot"), height = "750px"), type = 4, color = "#44CDC4")
@@ -230,7 +232,10 @@ abPageServer <- function(id, data) {
             ),
             class = "contentWell"
           ),
-          downloadButton(ns("save_btn"), "Save", class = "plotSaveButton")
+          div(
+            downloadButton(ns("save_image"), "Save Report", class = "plotSaveButton"),
+            downloadButton(ns("save_table"), "Save Data", class = "plotSaveButton")
+          )
         )
         
         # Show Error Handling -----------------------------------------------------
@@ -485,190 +490,33 @@ abPageServer <- function(id, data) {
             filter(gram == "Gram-positive") %>%
             select(-gram)
           
-          negTable <- datatable(
-            df_wide_neg,
-            rownames = FALSE,
-            class = "cell-border",
-            extensions = "FixedColumns",
-            options = list(
-              autoWidth = TRUE,
-              scrollX = TRUE,
-              scrollY = "350px",
-              scrollCollapse = TRUE,
-              fixedHeader = TRUE,
-              dom = 't',
-              fixedColumns = list(leftColumns = 2),
-              paging = FALSE,
-              ordering = FALSE,
-              columnDefs = list(
-                list(targets = obs_cols - 1, visible = FALSE),
-                list(targets = drug_targets, createdCell = combined_js),
-                list(targets = drug_targets, width = '15px'),
-                list(
-                  targets = 0:1,
-                  createdCell = JS("function(td, cellData, rowData, row, col) {
-          $(td).css({
-            'max-width': '150px',
-            'white-space': 'nowrap',
-            'overflow': 'hidden',
-            'text-overflow': 'ellipsis'
-          });
-        }")
-                )
-              ),
-              headerCallback = JS(
-                "function(thead, data, start, end, display) {",
-                "  var $ths = $(thead).find('th');",
-                "  var betterCells = [];",
-                "  $ths.each(function(index) {",
-                "    var cell = $(this);",
-                "    if (index === 0 || index === 1) {",
-                "      betterCells.push(cell.html());",
-                "    } else {",
-                "      var newDiv = $('<div>', {style: 'height: auto; width: 10px; transform: rotate(-90deg); white-space: nowrap;'});",
-                "      var newInnerDiv = $('<div>', {text: cell.text()});",
-                "      newDiv.append(newInnerDiv);",
-                "      betterCells.push(newDiv);",
-                "    }",
-                "  });",
-                "  $ths.each(function(i) {",
-                "    $(this).html(betterCells[i]);",
-                "  });",
-                "  $(thead).find('th:first-child').html('');",
-                "  $(thead).find('th').css({",
-                "    'vertical-align': 'bottom',",
-                "    'text-align': 'center',",
-                "    'height': '120px'",
-                "  });",
-                "}"
-              )
-            )
-          )
+          negTable <- classicAB(data = df_wide_neg,
+                                obs_cols = obs_cols,
+                                drug_targets = drug_targets,
+                                combined_js = combined_js,
+                                height = "350px")
           
-          posTable <- datatable(
-            df_wide_pos,
-            rownames = FALSE,
-            class = "cell-border",
-            extensions = "FixedColumns",
-            options = list(
-              autoWidth = TRUE,
-              scrollX = TRUE,
-              scrollY = "350px",
-              scrollCollapse = TRUE,
-              fixedHeader = TRUE,
-              dom = 't',
-              fixedColumns = list(leftColumns = 2),
-              paging = FALSE,
-              ordering = FALSE,
-              columnDefs = list(
-                list(targets = obs_cols - 1, visible = FALSE),
-                list(targets = drug_targets, createdCell = combined_js),
-                list(targets = drug_targets, width = '15px'),
-                list(
-                  targets = 0:1,
-                  createdCell = JS("function(td, cellData, rowData, row, col) {
-          $(td).css({
-            'max-width': '150px',
-            'white-space': 'nowrap',
-            'overflow': 'hidden',
-            'text-overflow': 'ellipsis'
-          });
-        }")
-                )
-              ),
-              headerCallback = JS(
-                "function(thead, data, start, end, display) {",
-                "  var $ths = $(thead).find('th');",
-                "  var betterCells = [];",
-                "  $ths.each(function(index) {",
-                "    var cell = $(this);",
-                "    if (index === 0 || index === 1) {",
-                "      betterCells.push(cell.html());",
-                "    } else {",
-                "      var newDiv = $('<div>', {style: 'height: auto; width: 10px; transform: rotate(-90deg); white-space: nowrap;'});",
-                "      var newInnerDiv = $('<div>', {text: cell.text()});",
-                "      newDiv.append(newInnerDiv);",
-                "      betterCells.push(newDiv);",
-                "    }",
-                "  });",
-                "  $ths.each(function(i) {",
-                "    $(this).html(betterCells[i]);",
-                "  });",
-                "  $(thead).find('th:first-child').html('');",
-                "  $(thead).find('th').css({",
-                "    'vertical-align': 'bottom',",
-                "    'text-align': 'center',",
-                "    'height': '120px'",
-                "  });",
-                "}"
-              )
-            )
-          )
+          posTable <- classicAB(data = df_wide_pos,
+                                obs_cols = obs_cols,
+                                drug_targets = drug_targets,
+                                combined_js = combined_js,
+                                height = "350px")
+          
+          table1(df_wide_neg)
+          table2(df_wide_pos)
           
           plot2(posTable)
           return(negTable)
           
         } else {
           
-          datatable(
-            df_wide,
-            rownames = FALSE,
-            class = "cell-border",
-            extensions = "FixedColumns",
-            options = list(
-              autoWidth = TRUE,
-              scrollX = TRUE,
-              scrollY = "750px",
-              scrollCollapse = TRUE,
-              fixedHeader = TRUE,
-              dom = 't',
-              fixedColumns = list(leftColumns = 2),
-              paging = FALSE,
-              ordering = FALSE,
-              columnDefs = list(
-                list(targets = obs_cols - 1, visible = FALSE),
-                list(targets = drug_targets, createdCell = combined_js),
-                list(targets = drug_targets, width = '15px'),
-                list(
-                  targets = 0:1,
-                  createdCell = JS("function(td, cellData, rowData, row, col) {
-          $(td).css({
-            'max-width': '150px',
-            'white-space': 'nowrap',
-            'overflow': 'hidden',
-            'text-overflow': 'ellipsis'
-          });
-        }")
-                )
-              ),
-              headerCallback = JS(
-                "function(thead, data, start, end, display) {",
-                "  var $ths = $(thead).find('th');",
-                "  var betterCells = [];",
-                "  $ths.each(function(index) {",
-                "    var cell = $(this);",
-                "    if (index === 0 || index === 1) {",
-                "      betterCells.push(cell.html());",
-                "    } else {",
-                "      var newDiv = $('<div>', {style: 'height: auto; width: 10px; transform: rotate(-90deg); white-space: nowrap;'});",
-                "      var newInnerDiv = $('<div>', {text: cell.text()});",
-                "      newDiv.append(newInnerDiv);",
-                "      betterCells.push(newDiv);",
-                "    }",
-                "  });",
-                "  $ths.each(function(i) {",
-                "    $(this).html(betterCells[i]);",
-                "  });",
-                "  $(thead).find('th:first-child').html('');",
-                "  $(thead).find('th').css({",
-                "    'vertical-align': 'bottom',",
-                "    'text-align': 'center',",
-                "    'height': '120px'",
-                "  });",
-                "}"
-              )
-            )
-          )
+          table1(df_wide)
+          
+          classicAB(data = df_wide,
+                    obs_cols = obs_cols,
+                    drug_targets = drug_targets,
+                    combined_js = combined_js,
+                    height = "750px")
           
         }
         
@@ -687,7 +535,7 @@ abPageServer <- function(id, data) {
       plot2()
     })
     
-    output$save_btn <- downloadHandler(
+    output$save_image <- downloadHandler(
       
       filename = "Antibiogram.html",
       
@@ -717,10 +565,8 @@ abPageServer <- function(id, data) {
         table_data <- plot()
         num_columns <- ncol(table_data$x$data)
         num_rows <- nrow(table_data$x$data)
-        col_width_px <- 25
-        row_height_px <- 25
+        col_width_px <- 22
         vwidth <- num_columns * col_width_px + 300
-        vheight <- num_rows * row_height_px + 300
         font_size <- max(12, 16 - 0.3 * num_columns)
         
         font_css <- sprintf('
@@ -740,8 +586,7 @@ abPageServer <- function(id, data) {
           url = "antibiogram_table.html",
           file = "antibiogram_table.png",
           vwidth = vwidth,
-          vheight = vheight,
-          zoom = 2
+          zoom = 1
         )
         
         if (splitGram()) {
@@ -754,14 +599,12 @@ abPageServer <- function(id, data) {
           num_columns2 <- ncol(table_data2$x$data)
           num_rows2 <- nrow(table_data2$x$data)
           vwidth2 <- num_columns2 * col_width_px + 300
-          vheight2 <- num_rows2 * row_height_px + 300
 
           webshot2::webshot(
             url = "antibiogram_table2.html",
             file = "antibiogram_table2.png",
             vwidth = vwidth2,
-            vheight = vheight2,
-            zoom = 2
+            zoom = 1
           )
         }
         
@@ -777,6 +620,28 @@ abPageServer <- function(id, data) {
         file.rename("Antibiogram.html", file)
       }
     )
+    
+    output$save_table <- downloadHandler(
+      filename = function() {
+        paste("my_data_", Sys.Date(), ".xlsx", sep = "")
+      },
+      content = function(file) {
+        # Build the named list conditionally
+        sheets <- if (splitGram()) {
+          list(
+            "Gram Negative" = table1(),
+            "Gram Positive" = table2()
+          )
+        } else {
+          list(
+            "Antibiogram" = table1()
+          )
+        }
+
+        writexl::write_xlsx(sheets, path = file)
+      }
+    )
+
 
   })
 }

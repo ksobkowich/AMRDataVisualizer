@@ -39,6 +39,7 @@ library(shinycssloaders)
 library(quarto)
 library(webshot2)
 library(chromote)
+library(writexl)
 
 # renv::init()
 
@@ -65,6 +66,7 @@ source("Functions/dataCleaningFunction.R")
 source("Functions/columnDetectFunctions.R")
 source("Functions/regionMatching.R")
 source("Functions/parseWideColumns.R")
+source("Functions/formatAntibiogram.R")
 
 #Data
 awareList <- read.csv("./Data/2023AwareClassifications.csv")

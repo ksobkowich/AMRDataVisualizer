@@ -605,3 +605,19 @@ h6{
     font-size: 18px;
     text-align: center;
 }
+
+.ab-table-wrapper .dataTable {
+  table-layout: fixed !important;
+  width: auto !important;
+}
+
+.ab-table-wrapper .dataTables_wrapper {
+  width: auto !important;
+  display: inline-block !important;
+}
+
+.ab-table-wrapper {
+  text-align: center;
+  padding: 10px;
+}
+

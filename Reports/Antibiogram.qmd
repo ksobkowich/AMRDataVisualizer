@@ -47,7 +47,7 @@ if (file.exists("antibiogram_table2.png")) {
     '<h3 style="text-align: center; margin-top: 2rem;">Gram-Negative</h3>',
     '<div style="display: flex; justify-content: center; padding: 1rem 1rem;">',
     '<img src="antibiogram_table.png" ',
-    'style="max-width: 98vw; height: auto; width: auto; display: block;',
+    'style="height: auto; width: auto; display: block;',
     'border: 0; padding: 0.2rem;" />',
     '</div>'
   )
@@ -56,7 +56,7 @@ if (file.exists("antibiogram_table2.png")) {
     html <- paste0(
     '<div style="display: flex; justify-content: center; padding: 1rem 1rem;">',
     '<img src="antibiogram_table.png" ',
-    'style="max-width: 98vw; height: auto; width: auto; display: block; ',
+    'style="height: auto; width: auto; display: block; ',
     'border: 0; padding: 0.2rem;" />',
     '</div>'
   )
@@ -72,7 +72,7 @@ if (file.exists("antibiogram_table2.png")) {
     '<h3 style="text-align: center; margin-top: 2rem;">Gram-Positive</h3>',
     '<div style="display: flex; justify-content: center; padding: 1rem 1rem;">',
     '<img src="antibiogram_table2.png" ',
-    'style="max-width: 98vw; height: auto; width: auto; display: block; ',
+    'style="height: auto; width: auto; display: block; ',
     'border: 0; padding: 0.2rem;" />',
     '</div>'
   )

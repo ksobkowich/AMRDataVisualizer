@@ -78,22 +78,32 @@ filterPanelServer <- function(id, data, default_filters, auto_populate = list())
               class = "quickDateButtonDiv"
             )
             
-          } else if (col == "Resistant to:") {
+          } else if (col == "Resistant to") {
             
             updateUI[[ns("resistanceFilter")]] <- selectizeInput(
               ns("resistanceFilter"),
-              label = "Resistant to:",
+              label = "Resistant to",
               choices = sort(unique(data$Antimicrobial), na.last = NA),
               selected = NULL,
               multiple = TRUE
             )
             
-          } else if (col == "WHO AWaRe Class:") {
+          } else if (col == "WHO AWaRe Class") {
             
             updateUI[[ns("awareFilter")]] <- selectizeInput(
               ns("awareFilter"),
-              label = "WHO AWaRe Class:",
+              label = "WHO AWaRe Class",
               choices = c("Access", "Reserve", "Watch"),
+              selected = NULL,
+              multiple = TRUE
+            )
+            
+          } else if (col == "Suppress Antimicrobials") {
+            
+            updateUI[[ns("removeAB")]] <- selectizeInput(
+              ns("removeAB"),
+              label = "Suppress Antimicrobials",
+              choices = sort(unique(data$Antimicrobial), na.last = NA),
               selected = NULL,
               multiple = TRUE
             )
@@ -129,8 +139,9 @@ filterPanelServer <- function(id, data, default_filters, auto_populate = list())
         title = "Select Filters",
         checkboxGroupInput(ns("selectedFilters"), "Choose Filters", 
                            choices = sort(c(colnames(data), 
-                                            "Resistant to:", 
-                                            "WHO AWaRe Class:")), 
+                                            "Suppress Antimicrobials",
+                                            "Resistant to", 
+                                            "WHO AWaRe Class")), 
                            selected = selected_filters$columns),
         footer = tagList(
           modalButton("Cancel"),
@@ -147,6 +158,15 @@ filterPanelServer <- function(id, data, default_filters, auto_populate = list())
     observeEvent(input$applyFilter, {
       
       filtered <- data
+      
+      if (!is.null(input$removeAB) && length(input$removeAB) > 0) {
+        
+        abToRemove <- input$removeAB
+        
+        filtered <- data %>%
+          filter(!Antimicrobial %in% abToRemove)
+        
+      }
       
       if (!is.null(input$resistanceFilter) && input$resistanceFilter != "") {
         resistant_rows <- data %>%
@@ -250,12 +270,16 @@ filterPanelServer <- function(id, data, default_filters, auto_populate = list())
       activeFilters = reactive({
         filters <- list()
         
+        if (!is.null(input$removeAB) && length(input$removeAB) > 0) {
+          filters[["Suppress Antimicrobials"]] <- input$removeAB
+        }
+        
         if (!is.null(input$resistanceFilter) && length(input$resistanceFilter) > 0) {
-          filters[["Resistant to:"]] <- input$resistanceFilter
+          filters[["Resistant to"]] <- input$resistanceFilter
         }
         
         if (!is.null(input$awareFilter) && length(input$awareFilter) > 0) {
-          filters[["WHO AWaRe Class:"]] <- input$awareFilter
+          filters[["WHO AWaRe Class"]] <- input$awareFilter
         }
         
         for (col in selected_filters$columns) {
