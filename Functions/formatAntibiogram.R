@@ -46,10 +46,24 @@ classicAB <- function(data, obs_cols, drug_targets, combined_js, height){
         });
       }
     ")
+        ),
+        
+        list(
+          targets = drug_targets,
+          createdCell = JS("
+      function(td, cellData, rowData, row, col) {
+        $(td).css({
+          'width': '25px',
+          'white-space': 'nowrap',
+          'overflow': 'hidden',
+          'text-overflow': 'ellipsis'
+        });
+      }
+    ")
         )
         
       ),
-   
+      
       headerCallback = JS(
         "function(thead, data, start, end, display) {",
         "  function rotateHeaders($ths) {",
@@ -77,14 +91,9 @@ classicAB <- function(data, obs_cols, drug_targets, combined_js, height){
         "  rotateHeaders($(thead).find('th'));",
         "  rotateHeaders($('.DTFC_Cloned thead th'));",
         "}"
-      ),
-      
-      drawCallback = JS(
-        "function(settings) {",
-        "  var api = this.api();",
-        "  setTimeout(function() { api.columns.adjust().draw(); }, 100);",
-        "}"
       )
+
+      
     )
     
   )

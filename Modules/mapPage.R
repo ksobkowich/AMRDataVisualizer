@@ -82,6 +82,7 @@ mapPageServer <- function(id, data) {
     )
     
     plotData <- reactive({ filters$filteredData() })
+    activeFilters <- reactive({ filters$activeFilters() })
 
     initialData <- reactive({
       data
@@ -89,7 +90,9 @@ mapPageServer <- function(id, data) {
 
     output$content <- renderUI({
       req(plotData())
-      if (!is.null(plotData()) && nrow(plotData()) > 0) {
+      if (!is.null(plotData()) &&
+          nrow(plotData()) > 0 &&
+          !all(is.na(plotData()$Region) | is.null(plotData()$Region))) {
         tagList(
           wellPanel(style = "overflow-x: scroll; overflow-y: scroll; max-height: 80vh;",
                     div(style = "min-height: 750px",
@@ -97,7 +100,16 @@ mapPageServer <- function(id, data) {
                     ),
                     class = "contentWell"
           ),
-          downloadButton(ns("savePlot"), icon = NULL, "Save", class = "plotSaveButton")
+          downloadButton(ns("save_image"), "Save Report", class = "plotSaveButton")
+        )
+      } else if (all(is.na(plotData()$Region) | is.null(plotData()$Region))){
+        wellPanel(
+          style = "display: flex; align-items: center; justify-content: center; max-height: 80vh;",
+          div(
+            style = "min-width: 1150px; min-height: 750px; display: flex; align-items: center; justify-content: center;",
+            uiOutput(ns("errorHandlingNoLocation"))
+          ),
+          class = "contentWell"
         )
       } else {
         wellPanel(
@@ -116,6 +128,15 @@ mapPageServer <- function(id, data) {
           icon("disease", style = "font-size:100px; color: #44CDC4"),
           h4("Oops... looks like there isn't enough data for this plot."),
           h6("Try reducing the number of filters applied or adjust your data in the 'Import' tab.")
+      )
+    })
+    
+    output$errorHandlingNoLocation <- renderUI({
+      div(
+        style = "display: flex; align-items: center; justify-content: center; height: 100%; flex-direction: column; text-align: center;",
+        icon("bacterium", style = "font-size:100px; color: #44CDC4"),
+        h4("No location information found in your data."),
+        h6("Please return to the 'Import' tab and ensure your dataset includes locations.")
       )
     })
 
@@ -218,14 +239,53 @@ mapPageServer <- function(id, data) {
       map_reactive()
     })
 
-    output$savePlot <- downloadHandler(
-      filename = paste(Sys.Date(), "AMRVisualizerMap.png", sep = "_"),
+    output$save_image <- downloadHandler(
+      
+      filename = "Map.html",
+      
       content = function(file) {
-        showModal(modalDialog(title = "Preparing your plot for download.", "Please wait, this should only take a few moments.", footer=NULL))
-        on.exit(removeModal())
-        mapshot(map_reactive(), file = file, vwidth = 2000, vheight = 1200)
+        withProgress(message = 'Rendering, please wait!', {
+          
+          src <- normalizePath("./Reports/Map.qmd")
+          tmp <- tempdir()
+          unlink(list.files(tmp, full.names = TRUE), recursive = TRUE, force = TRUE)
+          
+          owd <- setwd(tmp)
+          on.exit({
+            setwd(owd)
+            unlink(c("filters.RDS", "map.html", "map.png", "Map.qmd"), recursive = TRUE)
+          })
+          
+          file.copy(src, "Map.qmd", overwrite = TRUE)
+          
+          htmlwidgets::saveWidget(
+            widget = map_reactive(),
+            file = "map.html",
+            selfcontained = TRUE
+          )
+          
+          webshot2::webshot(
+            url = "map.html",
+            file = "map.png",
+            vwidth = 1200,
+            vheight = 800
+          )
+
+          saveRDS(activeFilters(), "filters.RDS")
+          
+          quarto::quarto_render(
+            input = "Map.qmd",
+            output_format = "html",
+            output_file = "Map.html"
+          )
+          
+          file.rename("Map.html", file)
+        })
       }
     )
+    
+    
+    
     
   })
 }

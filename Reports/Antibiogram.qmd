@@ -44,23 +44,22 @@ if (identical(low_counts, "Exclude")) {
 ```{r, echo=FALSE, results='asis'}
 if (file.exists("antibiogram_table2.png")) {
   html <- paste0(
-    '<h3 style="text-align: center; margin-top: 2rem;">Gram-Negative</h3>',
-    '<div style="display: flex; justify-content: center; padding: 1rem 1rem;">',
+    '<h3 style="text-align: center;">Gram-Negative</h3>',
+    '<div style="display: flex; justify-content: center;">',
     '<img src="antibiogram_table.png" ',
-    'style="height: auto; width: auto; display: block;',
-    'border: 0; padding: 0.2rem;" />',
+    'style="max-height: 75vh; width: auto; max-width: 90vw; object-fit: contain; border: 0; padding: 0.2rem;" />',
     '</div>'
   )
   cat(html)
 } else {
-    html <- paste0(
-    '<div style="display: flex; justify-content: center; padding: 1rem 1rem;">',
+  html <- paste0(
+    '<div style="display: flex; justify-content: center;">',
     '<img src="antibiogram_table.png" ',
-    'style="height: auto; width: auto; display: block; ',
-    'border: 0; padding: 0.2rem;" />',
+    'style="max-height: 75vh; width: auto; max-width: 90vw; object-fit: contain; border: 0; padding: 0.2rem;" />',
     '</div>'
   )
   cat(html)
+  
 }
 ```
 
@@ -69,11 +68,10 @@ if (file.exists("antibiogram_table2.png")) {
 ```{r, echo=FALSE, results='asis'}
 if (file.exists("antibiogram_table2.png")) {
   html <- paste0(
-    '<h3 style="text-align: center; margin-top: 2rem;">Gram-Positive</h3>',
-    '<div style="display: flex; justify-content: center; padding: 1rem 1rem;">',
+    '<h3 style="text-align: center;">Gram-Positive</h3>',
+    '<div style="display: flex; justify-content: center;">',
     '<img src="antibiogram_table2.png" ',
-    'style="height: auto; width: auto; display: block; ',
-    'border: 0; padding: 0.2rem;" />',
+    'style="max-height: 75vh; width: auto; max-width: 90vw; object-fit: contain; border: 0; padding: 0.2rem;" />',
     '</div>'
   )
   cat(html)

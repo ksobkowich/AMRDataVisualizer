@@ -606,18 +606,21 @@ h6{
     text-align: center;
 }
 
+.ab-table-wrapper {
+  text-align: center;
+  align-content: center;
+  padding: 10px;
+  width: auto;
+}
+
 .ab-table-wrapper .dataTable {
-  table-layout: fixed !important;
-  width: auto !important;
+  width: auto;
+  table-layout: auto;
 }
 
 .ab-table-wrapper .dataTables_wrapper {
-  width: auto !important;
-  display: inline-block !important;
+  width: auto;
+  display: block;
 }
 
-.ab-table-wrapper {
-  text-align: center;
-  padding: 10px;
-}
 

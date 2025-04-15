@@ -283,15 +283,29 @@ filterPanelServer <- function(id, data, default_filters, auto_populate = list())
         }
         
         for (col in selected_filters$columns) {
-          if (col == "Date" && !is.null(input$timeFilter)) {
-            filters[["Date"]] <- input$timeFilter
+          
+          if (col == "Date") {
+            if (!is.null(input$timeFilter)) {
+              filters[["Date"]] <- input$timeFilter
+            } else {
+              filters[["Date"]] <- c(min(data$Date, na.rm = TRUE), max(data$Date, na.rm = TRUE))
+            }
+            
           } else {
             val <- input[[paste0(col, "Filter")]]
+            
+            if (is.null(val) || length(val) == 0) {
+              if (isTRUE(auto_populate[[col]])) {
+                val <- names(sort(table(data[[col]]), decreasing = TRUE))[1]
+              }
+            }
+            
             if (!is.null(val) && length(val) > 0) {
               filters[[col]] <- val
             }
           }
         }
+        
         
         return(filters)
       })

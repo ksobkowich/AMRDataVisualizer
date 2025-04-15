@@ -167,7 +167,7 @@ abPageServer <- function(id, data) {
             selectizeInput(ns("yVar"), "Y-axis variable", selected = "Microorganism", choices = c("Microorganism", "Source")),
             
             conditionalPanel(
-              condition = sprintf("input['%s'] == 'Microorganism'", ns("yVar")), 
+              condition = sprintf("input['%s'] == 'Microorganism' && input['%s'] == 'Classic'",ns("yVar"), ns("abType")),
               selectizeInput(ns("sortBy"), "Sort by", selected = "Frequency", choices = c("Alphabetical", "Frequency", "Gram Stain")),
             ),
             
@@ -191,7 +191,7 @@ abPageServer <- function(id, data) {
             ),
             
             conditionalPanel(
-              condition = sprintf("input['%s'] == 'Microorganism'", ns("yVar")), 
+              condition = sprintf("input['%s'] == 'Microorganism' && input['%s'] == 'Classic'",ns("yVar"), ns("abType")),
               materialSwitch(ns("splitGram"), label = "Split by Gram Stain", value = F)
             ),
             
@@ -211,20 +211,32 @@ abPageServer <- function(id, data) {
         # Show Plot ---------------------------------------------------------------
         tagList(
           wellPanel(
-            style = "overflow-x: scroll; overflow-y: scroll; max-height: 80vh; min-width: 600px;",
+            style = "overflow-x: scroll; overflow-y: scroll; max-height: 80vh; min-width: 500px;",
             div(
               class = "ab-table-wrapper",
               if (abType() == "Classic") {
                 if (splitGram() == TRUE && yVar() == "Microorganism") {
                   tagList(
                     h4("Gram Negative"),
-                    withSpinner(DTOutput(ns("classicAB")), type = 4, color = "#44CDC4"),
+                    fluidRow(
+                      column(align = "center", width = 12, 
+                             withSpinner(DTOutput(ns("classicAB")), type = 4, color = "#44CDC4")
+                      )
+                    ),
                     hr(),
                     h4("Gram Positive"),
-                    withSpinner(DTOutput(ns("classicAB2")), type = 4, color = "#44CDC4")
+                    fluidRow(
+                      column(align = "center", width = 12, 
+                             withSpinner(DTOutput(ns("classicAB2")), type = 4, color = "#44CDC4")
+                      )
+                    )
                   )
                 } else {
-                  DTOutput(ns("classicAB"))
+                  fluidRow(
+                    column(align = "center", width = 12, 
+                           withSpinner(DTOutput(ns("classicAB")), type = 4, color = "#44CDC4")
+                    )
+                  )
                 }
               } else {
                 withSpinner(plotlyOutput(ns("plot"), height = "750px"), type = 4, color = "#44CDC4")
@@ -535,98 +547,111 @@ abPageServer <- function(id, data) {
       plot2()
     })
     
+
+# Save Report -------------------------------------------------------------
     output$save_image <- downloadHandler(
       
       filename = "Antibiogram.html",
       
       content = function(file) {
-        src <- normalizePath("./Reports/Antibiogram.qmd")
-        
-        tmp <- tempdir()
-        unlink(list.files(tmp, full.names = TRUE), recursive = TRUE, force = TRUE)
-        
-        owd <- setwd(tempdir())
-        on.exit({
-          setwd(owd)
-          unlink(c("filters.RDS", 
-                   "antibiogram_table.html", 
-                   "antibiogram_table2.html", 
-                   "antibiogram_table.png", 
-                   "antibiogram_table2.png", 
-                   "Antibiogram.qmd"), recursive = TRUE)
-        })
-        
-        file.copy(src, "Antibiogram.qmd", overwrite = TRUE)
-        
-        htmltools::save_html(plot(), "antibiogram_table.html")
-        
-        html_lines <- readLines("antibiogram_table.html")
-        
-        table_data <- plot()
-        num_columns <- ncol(table_data$x$data)
-        num_rows <- nrow(table_data$x$data)
-        col_width_px <- 22
-        vwidth <- num_columns * col_width_px + 300
-        font_size <- max(12, 16 - 0.3 * num_columns)
-        
-        font_css <- sprintf('
+        withProgress(message = 'Rendering, please wait!', {
+          
+          src <- normalizePath("./Reports/Antibiogram.qmd")
+          tmp <- tempdir()
+          unlink(list.files(tmp, full.names = TRUE), recursive = TRUE, force = TRUE)
+          
+          owd <- setwd(tempdir())
+          on.exit({
+            setwd(owd)
+            unlink(c("filters.RDS", 
+                     "antibiogram_table.html", 
+                     "antibiogram_table2.html", 
+                     "antibiogram_table.png", 
+                     "antibiogram_table2.png", 
+                     "Antibiogram.qmd"), recursive = TRUE)
+          })
+          file.copy(src, "Antibiogram.qmd", overwrite = TRUE)
+          htmltools::save_html(plot(), "antibiogram_table.html")
+          html_lines <- readLines("antibiogram_table.html")
+          table_data <- plot()
+          table_data$x$data <- table_data$x$data %>%
+            select(-which(grepl("^obs_", names(table_data$x$data))))
+          num_columns <- ncol(table_data$x$data)
+          vwidth <- 180 + 120 + (num_columns - 2) * 45 + 100
+          font_size <- max(12, 16 - 0.3 * num_columns)
+          
+          css <- sprintf('
   <link href="https://fonts.googleapis.com/css2?family=Carme&display=swap" rel="stylesheet">
   <style>
     body, table, td, th {
       font-family: "Carme", sans-serif !important;
-            font-size: %dpx !important;
+      font-size: %dpx !important;
+    }
+    .dataTables_wrapper {
+      overflow-x: visible !important;
+    }
+    table {
+      table-layout: fixed;
+    }
+    th:nth-child(1), td:nth-child(1) {
+      width: 180px !important;
+      max-width: 180px !important;
+    }
+    th:nth-child(2), td:nth-child(2) {
+      width: 120px !important;
+      max-width: 120px !important;
+    }
+    th:nth-child(n+3), td:nth-child(n+3) {
+      width: 25px !important;
+      max-width: 25px !important;
     }
   </style>', round(font_size))
-        
-        html_lines <- sub("</head>", paste0(font_css, "\n</head>"), html_lines)
-        
-        writeLines(html_lines, "antibiogram_table.html")
-        
-        webshot2::webshot(
-          url = "antibiogram_table.html",
-          file = "antibiogram_table.png",
-          vwidth = vwidth,
-          zoom = 1
-        )
-        
-        if (splitGram()) {
-          htmltools::save_html(plot2(), "antibiogram_table2.html")
-          html_lines2 <- readLines("antibiogram_table2.html")
-          html_lines2 <- sub("</head>", paste0(font_css, "\n</head>"), html_lines2)
-          writeLines(html_lines2, "antibiogram_table2.html")
-
-          table_data2 <- plot2()
-          num_columns2 <- ncol(table_data2$x$data)
-          num_rows2 <- nrow(table_data2$x$data)
-          vwidth2 <- num_columns2 * col_width_px + 300
-
+          
+          html_lines <- sub("</head>", paste0(css, "\n</head>"), html_lines)
+          
+          writeLines(html_lines, "antibiogram_table.html")
+          
           webshot2::webshot(
-            url = "antibiogram_table2.html",
-            file = "antibiogram_table2.png",
-            vwidth = vwidth2,
-            zoom = 1
+            url = "antibiogram_table.html",
+            file = "antibiogram_table.png",
+            vwidth = vwidth
           )
-        }
-        
-        saveRDS(activeFilters(), "filters.RDS")
-        writeLines(lowCounts(), "low_counts_flag.txt")
-        
-        quarto::quarto_render(
-          input = "Antibiogram.qmd",
-          output_format = "html",
-          output_file = "Antibiogram.html"
-        )
-        
-        file.rename("Antibiogram.html", file)
+          
+          if (splitGram()) {
+            htmltools::save_html(plot2(), "antibiogram_table2.html")
+            html_lines2 <- readLines("antibiogram_table2.html")
+            html_lines2 <- sub("</head>", paste0(css, "\n</head>"), html_lines2)
+            writeLines(html_lines2, "antibiogram_table2.html")
+            
+            webshot2::webshot(
+              url = "antibiogram_table2.html",
+              file = "antibiogram_table2.png",
+              vwidth = vwidth
+            )
+          }
+          
+          saveRDS(activeFilters(), "filters.RDS")
+          writeLines(lowCounts(), "low_counts_flag.txt")
+          
+          quarto::quarto_render(
+            input = "Antibiogram.qmd",
+            output_format = "html",
+            output_file = "Antibiogram.html",
+            execute_params = list(vwidth = vwidth)
+          )
+          
+          file.rename("Antibiogram.html", file)
+        })
       }
     )
     
+
+# Save Data ---------------------------------------------------------------
     output$save_table <- downloadHandler(
       filename = function() {
-        paste("my_data_", Sys.Date(), ".xlsx", sep = "")
+        paste("Antibiogram.xlsx")
       },
       content = function(file) {
-        # Build the named list conditionally
         sheets <- if (splitGram()) {
           list(
             "Gram Negative" = table1(),
@@ -637,11 +662,10 @@ abPageServer <- function(id, data) {
             "Antibiogram" = table1()
           )
         }
-
         writexl::write_xlsx(sheets, path = file)
       }
     )
-
-
+    
+    
   })
 }

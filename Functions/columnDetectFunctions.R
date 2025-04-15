@@ -58,7 +58,7 @@ detectSourceColumn <- function(data) {
 
 # Detect Microorganism Column
 detectMoColumn <- function(data) {
-  keywords <- c("microorganism", "bacteria", "genus", "organism", "pathogen", "org")
+  keywords <- c("microorganism", "bacteria", "genus", "organism", "pathogen", "org", "isolate")
   detectColumnByName(data, keywords)
 }
 

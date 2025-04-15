@@ -83,8 +83,21 @@ dataCleaner <- function(rawData, additionalCols = NULL) {
                                  Date,
                                  orders = c(
                                    "ymd", "mdy", "dmy",
+                                   "Ymd HMS", "Ymd HM", "Ymd",
+                                   "ymd HMS", "ymd HM",
+                                   "mdy HMS", "mdy HM", "mdy",       
+                                   "dmy HMS", "dmy HM", "dmy",
                                    "m/d/y", "d/m/y",
-                                   "B d, Y", "d B Y", "d-b-Y", "d-b-y"
+                                   "m/d/y HMS", "m/d/y HM",
+                                   "d/m/y HMS", "d/m/y HM",
+                                   "B d, Y", "d B Y",
+                                   "b d, Y", "d b Y",
+                                   "d-b-Y", "d-b-y",
+                                   "%Y-%m-%d %H:%M",
+                                   "%d-%m-%Y %H:%M",
+                                   "%m-%d-%Y %H:%M",
+                                   "%Y/%m/%d %H:%M",
+                                   "%Y%m%d"
                                  )
                                ) %>% as.Date()
                              } else {
