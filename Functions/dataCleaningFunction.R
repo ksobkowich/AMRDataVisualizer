@@ -8,10 +8,24 @@ dataCleaner <- function(rawData, additionalCols = NULL) {
   
   # Precompute the mappings for antimicrobial and microorganism names and classes
   ab_name_data <- unique(rawData$Antimicrobial) %>%
-    data.frame(Antimicrobial = ., ab_name = ab_name(.))  # Create a mapping for ab_name
+    data.frame(Antimicrobial = ., stringsAsFactors = FALSE) %>%
+    mutate(ab_name = ab_name(Antimicrobial, minimum_matching_score = 0.75)) %>%
+    mutate(ab_name = ifelse(ab_name == "(unknown name)", Antimicrobial, ab_name)) %>%
+    arrange(Antimicrobial)
+  
+  ab_log <- ab_name_data
   
   mo_name_data <- unique(rawData$Microorganism) %>%
-    data.frame(Microorganism = ., mo_name = mo_name(.))  # Create a mapping for mo_name
+    data.frame(Microorganism = ., stringsAsFactors = FALSE) %>%
+    mutate(mo_name = mo_name(Microorganism, minimum_matching_score = 0.675)) %>%
+    mutate(mo_name = ifelse(mo_name == "(unknown name)", Microorganism, mo_name)) %>%
+    arrange(Microorganism)
+  
+  mo_log <- mo_name_data
+
+  mo_uncertainties <- mo_uncertainties()
+  mo_renamed <- mo_renamed()
+  mo_failures <- mo_failures()
   
   ab_class_data <- unique(rawData$Antimicrobial) %>%
     data.frame(Antimicrobial = ., ab_class = ab_group(.))  # Create a mapping for ab_group
@@ -137,5 +151,14 @@ dataCleaner <- function(rawData, additionalCols = NULL) {
   
   stopCluster(cl)
   
-  return(cleanData)
+  return(
+    list(
+      mo_uncertainties = mo_uncertainties,
+      mo_renamed = mo_renamed,
+      mo_failures = mo_failures,
+      mo_log = mo_log,
+      ab_log = ab_log,
+      cleaned_data = cleanData
+      )
+  )
 }

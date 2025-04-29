@@ -39,6 +39,7 @@ importDataServer <- function(id) {
       additionalCols = NULL
     )
     displayCleanedData <- reactiveVal(FALSE)
+    log <- reactiveVal()
 
 # Logic to disable dropdown menu if file is uploaded ----------------------
     observe({
@@ -132,34 +133,101 @@ importDataServer <- function(id) {
       showModal(modalDialog(
         title = "Processing Data",
         h4("Your data are being processed, please wait."),
-        br(),
-        br(),
+        br(), br(),
         div(
           style = "font-size: 24px; text-align: center; padding-bottom: 75px;",
-          "Loading",
-          span(class = "dot", "."), span(class = "dot", "."), span(class = "dot", ".")
+          "Loading", span(class = "dot", "."), span(class = "dot", "."), span(class = "dot", ".")
         ),
         br(),
         h5("After your data are processed, you will have the option to download the processed version for future use. If you upload data that have already been processed through the data visualizer, this processing step will automatically be skipped."),
-        tags$style(
-          HTML("
-          @keyframes dot {
-            0% { opacity: 0; }
-            20% { opacity: 1; }
-            40% { opacity: 0; }
-          }
-          .dot:nth-child(1) { animation: dot 1s infinite 0.2s; }
-          .dot:nth-child(2) { animation: dot 1s infinite 0.4s; }
-          .dot:nth-child(3) { animation: dot 1s infinite 0.6s; }
-        ")
-        ),
-        footer = NULL
+        tags$style(HTML("
+      @keyframes dot {
+        0% { opacity: 0; }
+        20% { opacity: 1; }
+        40% { opacity: 0; }
+      }
+      .dot:nth-child(1) { animation: dot 1s infinite 0.2s; }
+      .dot:nth-child(2) { animation: dot 1s infinite 0.4s; }
+      .dot:nth-child(3) { animation: dot 1s infinite 0.6s; }
+    ")),
+        footer = NULL,
+        easyClose = FALSE
       ))
       
-      cleanedData(dataCleaner(availableData(), additionalCols = selections$additionalCols))
+      results <- dataCleaner(availableData(), additionalCols = selections$additionalCols)
+      cleanedData(results$cleaned_data)
       displayCleanedData(TRUE)
       removeModal()
+      
+      renamed_log <- if (is.null(results$mo_renamed) || nrow(results$mo_renamed) < 1) {
+        "No renamed microorganisms were found."
+      } else {
+        paste0(
+          "* ", 
+          results$mo_renamed$old, 
+          " (", results$mo_renamed$ref_old, ")  ->  ", 
+          results$mo_renamed$new, 
+          " (", results$mo_renamed$ref_new, ")"
+        )
+      }
+      
+      uncertain_log <- capture.output(print(results$mo_uncertainties, n = Inf))
+      
+      failure_log <- if (is.null(results$mo_failures) || length(results$mo_failures) < 1) {
+        "No failures."
+      } else {
+        results$mo_failures
+      }
+      
+      shinyjs::delay(500, {
+        showModal(modalDialog(
+          title = "Processing Log",
+          size = "l",
+          
+          h5("The following log details how your uploaded data were processed. During this step, entries were standardized based on taxonomic reference databases. This includes resolving known synonyms, flagging uncertain matches, and identifying any entries that could not be confidently matched. Review the sections below to understand what changes were made and why.",
+             style = "text-align: center;"
+          ),
+          hr(), br(),
+          
+          tabsetPanel(
+            tabPanel("Microorganisms",
+                     tabsetPanel(type = "tabs",
+                                 tabPanel("Change Log",
+                                          pre(paste(
+                                            sprintf("%-50s %s %s", results$mo_log$Microorganism, "→", results$mo_log$mo_name),
+                                            collapse = "\n"
+                                          ))
+                                 ),
+                                 tabPanel("Uncertainties",
+                                          pre(paste(uncertain_log, collapse = "\n"))
+                                 ),
+                                 tabPanel("Failures",
+                                          pre(paste(failure_log, collapse = "\n"))
+                                 ),
+                                 tabPanel("Renames",
+                                          pre(paste(renamed_log, collapse = "\n"))
+                                 )
+                     )
+            ),
+            tabPanel("Antimicrobials",
+                     tabsetPanel(type = "tabs",
+                                 tabPanel("Change Log",
+                                          pre(paste(
+                                            sprintf("%-50s %s %s", results$ab_log$Antimicrobial, "→", results$ab_log$ab_name),
+                                            collapse = "\n"
+                                          ))
+                                 )
+                     )
+            )
+          ),
+          
+          easyClose = FALSE,
+          footer = modalButton("Close")
+        ))
+      })
+      
     })
+    
     
     observe({
       req(input$sirCol)
@@ -498,11 +566,11 @@ importDataServer <- function(id) {
     }
     
 
-# Trigger Wide Data Modal when Data > 25 columns or Manually --------------
+# Trigger Wide Data Modal when Data > 16 columns or Manually --------------
     observeEvent(upload$content, {
       req(upload$content)
       
-      if (ncol(upload$content) > 25) {
+      if (ncol(upload$content) > 16) {
         showModal(wideFormatModal(ns))
       }
     })

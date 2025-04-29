@@ -5,33 +5,41 @@ ovPageUI <- function(id) {
       column(8, 
              h4("Tests over time"),
              wellPanel(
-               plotOutput(ns("nOverTimePlot"), height = "35vh"),
+               withSpinner(plotOutput(ns("nOverTimePlot"), height = "35vh"), type = 4, color = "#44CDC4"),
                class = "contentWell"
              )
       ),
+      
       column(4, 
-             h4("Species"),
+             h4("Summary Stats"),
              wellPanel(
-               plotOutput(ns("speciesPlot"), height = "35vh"),
-               class = "contentWell"
+               div(
+                 id = "summary-stats-table-container",
+                 withSpinner(tableOutput(ns("summaryTable")), type = 4, color = "#44CDC4")
+               ),
+               class = "contentWell",
+               style = "height: 39vh; overflow: scroll;"
              )
       ),
     ),
+    
     fluidRow(
       column(6, 
              h4("Antimicrobials: Number of tests results"),
              wellPanel(
-               plotlyOutput(ns("abPlot"), height = "35vh"),
+               withSpinner(plotlyOutput(ns("abPlot"), height = "35vh"), type = 4, color = "#44CDC4"),
                class = "contentWell"
              )
       ),
+      
       column(6, 
-             h4("Microorganisms: 10 most common"),
+             h4("Frequency Plot"),
              wellPanel(
-               plotlyOutput(ns("moPlot"), height = "35vh"),
-               class = "contentWell"
+               uiOutput(ns("freqWell")),
+               class = "contentWell",
+               style = "height: 39vh; overflow-y: auto;"
              )
-      ),
+      )
     )
   )
 }
@@ -71,64 +79,51 @@ ovPageServer <- function(id, data) {
         )
     })
     
-    output$speciesPlot <- renderPlot({
-      speciesBreakdown <- data %>% 
-        group_by(Date, ID, Microorganism) %>% 
-        slice(1) %>% 
-        ungroup() %>% 
-        group_by(Species) %>% 
-        summarize(Count = n()) %>% 
-        ungroup
+    output$summaryTable <- renderTable({
       
-      ggplot(speciesBreakdown, aes(x = 2, y = Count, fill = Species)) +
-        geom_bar(stat = "identity", color = "white") +
-        coord_polar(theta = "y", start = 1) +
-        theme_void() +
-        xlim(-3, 2.5) +
-        scale_fill_manual(values = pal) +
-        theme(
-          legend.position = "bottom",
-          legend.title = element_blank(),
-          legend.text = element_text(size = 12)
-        )
-    })
-    
-    output$moPlot <- renderPlotly({
-      moBreakdown <- data %>% 
-        group_by(Date, ID, Microorganism) %>% 
-        slice(1) %>% 
-        ungroup() %>% 
-        group_by(Microorganism) %>% 
-        summarize(Count = n()) %>% 
-        ungroup() %>% 
-        arrange(-Count) %>% 
-        head(10) %>%
-        mutate(Microorganism = factor(Microorganism, levels = Microorganism[order(-Count)])) %>% 
-        mutate(tooltipText = paste("Count: ", Count))
+      #Calculations
+      unique_microorganisms <- data %>% distinct(Microorganism) %>% nrow()
+      unique_antimicrobials <- data %>% distinct(Antimicrobial) %>% nrow()
+      n_samples <- data %>%
+        distinct(ID, Date) %>%
+        nrow()
+      n_isoaltes <- num_samples <- data %>%
+        distinct(ID, Date, Microorganism) %>%
+        nrow()
+      mean_isolates_per_sample <- data %>%
+        distinct(ID, Date, Microorganism) %>%
+        count(ID, Date) %>%
+        pull(n) %>%
+        mean()
+      n_tests <- nrow(data)
+      mean_test_per_isolate <- data %>%
+        distinct(ID, Date, Microorganism, Antimicrobial) %>%
+        count(ID, Date, Microorganism) %>%
+        pull(n) %>%
+        mean()
       
-      
-      moBreakdown$alpha <- rescale(moBreakdown$Count, to = c(0.6, 1))
-      
-      plot_ly(data = moBreakdown, x = ~Count, y = ~Microorganism, type = 'bar', orientation = 'h',
-              marker = list(color = '#44cdc4', opacity = ~alpha), hoverinfo = ~tooltipText) %>%
-        layout(
-          xaxis = list(
-            title = "",
-            fixedrange = TRUE 
-          ),
-          yaxis = list(
-            title = "",
-            fixedrange = TRUE,
-            ticksuffix = "  "
-          ),
-          margin = list(l = 0, r = 0, t = 0, b = 0),
-          hovermode = 'closest',
-          plot_bgcolor = 'white',
-          showlegend = FALSE
-        ) %>%
-        config(displayModeBar = FALSE)
-      
-    })
+      data.frame(
+        Metric = c(
+          "Unique microorganisms",
+          "Unique antimicrobials",
+          "Total samples",
+          "Total isolates",
+          "Total tests",
+          "Mean isolates per sample",
+          "Mean tests per isolate"
+        ),
+        Value = c(
+          format(round(unique_microorganisms, 0), big.mark = ","),
+          format(round(unique_antimicrobials, 0), big.mark = ","),
+          format(round(n_samples, 0), big.mark = ","),
+          format(round(n_isoaltes, 0), big.mark = ","),
+          format(round(n_tests, 0), big.mark = ","),
+          format(round(mean_isolates_per_sample, 2), big.mark = ","),
+          format(round(mean_test_per_isolate, 2), big.mark = ",")
+        ),
+        stringsAsFactors = FALSE
+      )
+    }, striped = FALSE, bordered = FALSE, hover = FALSE, spacing = 's')
     
     output$abPlot <- renderPlotly({
       abBreakdown <- data %>%
@@ -170,9 +165,74 @@ ovPageServer <- function(id, data) {
           margin = list(t = 0, b = 0, l = 0, r = 0),
           hovermode = 'closest',
           modebar = list(add = NULL, remove = "all"),
-          treemapcolorway = colorPalette
-        ) %>% 
-        config(displayModeBar = FALSE)
+          colorway = colorPalette
+        ) %>%
+        config(p,
+               modeBarButtonsToAdd = list('toImage'),
+               toImageButtonOptions = list(
+                 height = 800,
+                 width = 1200,
+                 scale = 2
+               ),
+               displaylogo = FALSE)
+    })
+    
+    
+    output$freqWell <- renderUI({
+      tagList(
+        selectizeInput(ns("freqPlotSelect"),
+                       label = NULL,
+                       choices = c("Antimicrobial", "Class", "Microorganism", "Region", "Source", "Species", "Subregion"),
+                       selected = "Microorganism"),
+        withSpinner(plotlyOutput(ns("freqPlot"), height = "30vh"), type = 4, color = "#44CDC4")
+      )
+    })
+    
+    output$freqPlot <- renderPlotly({
+      
+      req(input$freqPlotSelect)
+
+      breakdown <- data %>%
+        select(Date, ID, !!sym(input$freqPlotSelect)) %>% 
+        group_by(Date, ID, !!sym(input$freqPlotSelect)) %>%
+        slice(1) %>%
+        ungroup() %>%
+        group_by(!!sym(input$freqPlotSelect)) %>%
+        summarize(Count = n(), .groups = "drop") %>%
+        arrange(-Count) %>%
+        slice_head(n = 10) %>%
+        mutate(!!sym(input$freqPlotSelect) := factor(!!sym(input$freqPlotSelect),
+                                                     levels = !!sym(input$freqPlotSelect))) %>%
+        mutate(tooltipText = paste("Count:", Count))
+      
+      breakdown$alpha <- rescale(breakdown$Count, to = c(0.6, 1))
+      
+      plot_ly(data = breakdown, x = ~Count, y = ~get(input$freqPlotSelect), type = 'bar', orientation = 'h',
+              marker = list(color = '#44cdc4', opacity = ~alpha), hoverinfo = ~tooltipText) %>%
+        layout(
+          xaxis = list(
+            title = "",
+            fixedrange = TRUE 
+          ),
+          yaxis = list(
+            title = "",
+            fixedrange = TRUE,
+            ticksuffix = "  "
+          ),
+          margin = list(l = 0, r = 0, t = 0, b = 0),
+          hovermode = 'closest',
+          plot_bgcolor = 'white',
+          showlegend = FALSE
+        ) %>%
+        config(p,
+               modeBarButtonsToAdd = list('toImage'),
+               toImageButtonOptions = list(
+                 height = 800,
+                 width = 1200,
+                 scale = 2
+               ),
+               displaylogo = FALSE)
+      
     })
     
   })

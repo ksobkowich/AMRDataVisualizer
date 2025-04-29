@@ -553,6 +553,7 @@ h6{
 .nav-tabs {
     border-bottom: 0px;
 }
+
 .pretty .state label:after, .pretty .state label:before {
     border-radius: 10px;
 }
@@ -621,6 +622,37 @@ h6{
 .ab-table-wrapper .dataTables_wrapper {
   width: auto;
   display: block;
+}
+
+#summary-stats-table-container table {
+  border-collapse: collapse;
+  width: auto;
+  margin-top: 10px;
+  font-size: 12px;
+}
+
+#summary-stats-table-container th {
+  font-weight: bold;
+  color: #44CDC4;
+  font-size: 18px;
+  text-align: left;
+  padding: 10px;
+}
+
+#summary-stats-table-container td {
+  border: none !important;
+  padding: 6px 12px;
+}
+
+#summary-stats-table-container td:first-child {
+  font-weight: bold;
+  color: #44CDC4;
+  font-size: 14px;
+}
+
+#summary-stats-table-container td:last-child {
+  font-weight: normal;
+  color: #333;
 }
 
 
