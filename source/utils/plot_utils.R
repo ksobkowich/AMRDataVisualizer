@@ -46,7 +46,7 @@ getAntibiogramPlotItems <- function(
   }
 
   # Only keep the top `maxRows` most frequent microorganisms/source if needed.
-  if (controls$maxRows > length(unique(plotData[[controls$yVar]]))) {
+  if (controls$maxRows < length(unique(plotData[[controls$yVar]]))) {
     plotData <- plotData %>%
       group_by(!!sym(controls$yVar)) %>%
       mutate(Frequency = n()) %>%
