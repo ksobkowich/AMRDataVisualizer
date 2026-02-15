@@ -66,3 +66,13 @@ get_clinical_bps <- function(full_clinical_bps, filters = list()) {
     select(all_of(colnames(AMR::clinical_breakpoints))) # Get the original column order
   return(data)
 }
+
+#' Add percentage signs to specified columns in a data frame.
+#'
+#' @param data  The data frame to modify.
+#' @param cols  A character vector of column names to which percentage signs should be added
+#' @return      The modified data frame with percentage signs added to the specified columns.
+add_percentage_to_cols <- function(data, cols) {
+  data %>%
+    mutate(across(dplyr::any_of(cols), ~ ifelse(is.na(.) | . == "NA", ., paste0(., "%"))))
+}

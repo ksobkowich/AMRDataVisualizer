@@ -30,7 +30,8 @@ getAntibiogramPlotItems <- function(
   staticData = NULL,
   table_type = "percentage",
   show_n_col = FALSE,
-  clopper_pearson_ci_data = NULL
+  clopper_pearson_ci_data = NULL,
+  ab_cell_width = 50
 ) {
   if (is.null(plotData) || nrow(plotData) == 0) {
     return(NULL)
@@ -157,7 +158,8 @@ getAntibiogramPlotItems <- function(
       drug_targets = drug_targets,
       showColors = controls$showColors,
       drug_class_starts = drug_class_starts,
-      table_type = table_type
+      table_type = table_type,
+      ab_cell_width = ab_cell_width
     )
 
     posTable <- classicAB(
@@ -166,7 +168,8 @@ getAntibiogramPlotItems <- function(
       drug_targets = drug_targets,
       showColors = controls$showColors,
       drug_class_starts = drug_class_starts,
-      table_type = table_type
+      table_type = table_type,
+      ab_cell_width = ab_cell_width
     )
 
     return(list(
@@ -182,7 +185,8 @@ getAntibiogramPlotItems <- function(
       drug_targets = drug_targets,
       showColors = controls$showColors,
       drug_class_starts = drug_class_starts,
-      table_type = table_type
+      table_type = table_type,
+      ab_cell_width = ab_cell_width
     )
 
     return(list(
