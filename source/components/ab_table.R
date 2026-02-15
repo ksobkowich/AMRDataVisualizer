@@ -6,6 +6,7 @@
 #' @param showColors Logical indicating whether to apply color coding.
 #' @param table_type Type of table to generate: "percentage", "isolate", or "ci".
 #' @param drug_class_starts Numeric vector indicating where drug class separators should be placed.
+#' @param ab_cell_width Numeric value for the width of antibiotic columns in pixels.
 #' @return A gt table formatted as a classic antibiogram.
 classicAB <- function(
   data,
@@ -13,16 +14,13 @@ classicAB <- function(
   drug_targets,
   showColors = TRUE,
   table_type = "percentage", # Can be "percentage", "isolate", or "ci"
-  drug_class_starts = NULL
+  drug_class_starts = NULL,
+  ab_cell_width = 50
 ) {
   fixed_cols <- 1
 
   if ("n =" %in% colnames(data)) {
-    data <- data %>%
-      dplyr::select(-dplyr::any_of("n ="))
     fixed_cols <- 1:2
-    obs_cols <- obs_cols - 1
-    drug_targets <- drug_targets - 1
   }
 
   abs <- colnames(data)[unique(c(obs_cols, drug_targets + 1))]
@@ -47,6 +45,10 @@ classicAB <- function(
       dplyr::select(any_of(c(colnames(data)[fixed_cols], paste0(column_prefix, abs))), everything())
     obs_cols <- which(colnames(data) %in% paste0("obs_", abs))
     drug_targets <- which(colnames(data) %in% paste0(column_prefix, abs)) - 1
+  } else {
+    # Add percentage signs to the appropriate columns
+    data <- data %>%
+      add_percentage_to_cols(abs)
   }
 
   plt <- data %>%
@@ -97,11 +99,10 @@ classicAB <- function(
     gt::cols_label(.list = label_map) # Remove prefix from ab column labels
 
   if (!is.null(drug_class_starts)) {
-    drug_col_width <- ifelse(table_type == "ci", 60, 40)
     width_list <- Map(
       function(col, width) as.formula(paste0("`", col, "` ~ gt::px(", width, ")")),
       target_ab_cols,
-      drug_col_width
+      ab_cell_width
     )
 
     # Add the fixed column widths

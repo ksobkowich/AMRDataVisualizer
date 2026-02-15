@@ -62,6 +62,12 @@ server <- function(id, reactiveData, customBreakpoints, mic_or_sir, bp_log) {
     # ------------------------------------------------------------------------------
     # Module variables
     # ------------------------------------------------------------------------------
+
+    # Cell widths for the drug columns in the tables
+    AB_PERCENT_CELL_WIDTH <- 50
+    AB_ISOLATE_CELL_WIDTH <- 40
+    AB_CI_CELL_WIDTH <- 60
+
     # ------------------------------------------------------------------------------
     # Reactives
     # ------------------------------------------------------------------------------
@@ -205,7 +211,9 @@ server <- function(id, reactiveData, customBreakpoints, mic_or_sir, bp_log) {
       return(getAntibiogramPlotItems(
         data,
         controls = controls(),
-        staticData = reactiveData()
+        staticData = reactiveData(),
+        show_n_col = TRUE,
+        ab_cell_width = AB_PERCENT_CELL_WIDTH
       ))
     })
 
@@ -470,7 +478,7 @@ server <- function(id, reactiveData, customBreakpoints, mic_or_sir, bp_log) {
     #' @param ab_cell_width The width of the antimicrobial cells in the table.
     #' @return              The width in pixels.
     #' @seealso {@link{getVisibleCols}}
-    getHtmlTableWidth <- function(tableData, ab_cell_width = 40) {
+    getHtmlTableWidth <- function(tableData, ab_cell_width = AB_PERCENT_CELL_WIDTH) {
       numCols <- getVisibleCols(tableData)
 
       #' The fixed columns (first 2) are wider than the rest and have
@@ -519,7 +527,12 @@ server <- function(id, reactiveData, customBreakpoints, mic_or_sir, bp_log) {
     #' @param ab_cell_width The width of the antimicrobial cells in the table.
     #' @return              None.
     #' @seealso {@link{getHtmlTableWidth}}, {@link{addStylingToHtml}}
-    saveVisualisationPng <- function(visualisation, table_data, filename, ab_cell_width = 40) {
+    saveVisualisationPng <- function(
+      visualisation,
+      table_data,
+      filename,
+      ab_cell_width = AB_PERCENT_CELL_WIDTH
+    ) {
       htmlName <- paste0(filename, ".html")
       pngName <- paste0(filename, ".png")
 
@@ -611,14 +624,20 @@ server <- function(id, reactiveData, customBreakpoints, mic_or_sir, bp_log) {
       ab_table_data <- currentVisualisation$`_data` %>%
         select(any_of(c(yVar(), unique(filtered_data$Antimicrobial))))
 
-      saveVisualisationPng(currentVisualisation, ab_table_data, "antibiogram_table")
+      saveVisualisationPng(
+        currentVisualisation,
+        ab_table_data,
+        "antibiogram_table",
+        ab_cell_width = AB_PERCENT_CELL_WIDTH
+      )
 
       # Number of Isolates Images
       isolate_items <- getAntibiogramPlotItems(
         plotData = filtered_data,
         controls = current_controls,
         staticData = reactive_data,
-        table_type = "isolate"
+        table_type = "isolate",
+        ab_cell_width = AB_ISOLATE_CELL_WIDTH
       )
       # Get the table data for image width calculation
       isolate_table_data <- if (splitGram()) {
@@ -635,7 +654,8 @@ server <- function(id, reactiveData, customBreakpoints, mic_or_sir, bp_log) {
         controls = current_controls,
         staticData = reactive_data,
         clopper_pearson_ci_data = clopper_pearson_ci(),
-        table_type = "ci"
+        table_type = "ci",
+        ab_cell_width = AB_CI_CELL_WIDTH
       )
       # Get the table data for image width calculation
       ci_table_data <- if (splitGram()) {
@@ -647,20 +667,40 @@ server <- function(id, reactiveData, customBreakpoints, mic_or_sir, bp_log) {
         select(any_of(c(yVar(), unique(filtered_data$Antimicrobial))))
 
       if (splitGram()) {
-        visualisation2 <- classicAbTable2() # %>% gt::cols_hide(columns = "n =")
-        saveVisualisationPng(visualisation2, ab_table_data, "antibiogram_table2")
+        visualisation2 <- classicAbTable2()
+        saveVisualisationPng(
+          visualisation2,
+          ab_table_data,
+          "antibiogram_table2",
+          ab_cell_width = AB_PERCENT_CELL_WIDTH
+        )
 
         # Number of Isolates Images
-        saveVisualisationPng(isolate_items$negTable, isolate_table_data, "isolate_table")
-        saveVisualisationPng(isolate_items$posTable, isolate_table_data, "isolate_table2")
+        saveVisualisationPng(
+          isolate_items$negTable,
+          isolate_table_data,
+          "isolate_table",
+          ab_cell_width = AB_ISOLATE_CELL_WIDTH
+        )
+        saveVisualisationPng(
+          isolate_items$posTable,
+          isolate_table_data,
+          "isolate_table2",
+          ab_cell_width = AB_ISOLATE_CELL_WIDTH
+        )
 
         # Clopper Pearson CI Images
-        saveVisualisationPng(ci_items$negTable, ci_table_data, "ci_table", ab_cell_width = 60)
+        saveVisualisationPng(
+          ci_items$negTable,
+          ci_table_data,
+          "ci_table",
+          ab_cell_width = AB_CI_CELL_WIDTH
+        )
         saveVisualisationPng(
           ci_items$posTable,
           ci_table_data,
           "ci_table2",
-          ab_cell_width = 60
+          ab_cell_width = AB_CI_CELL_WIDTH
         )
       } else {
         saveVisualisationPng(isolate_items$table, isolate_table_data, "isolate_table")
@@ -862,6 +902,37 @@ server <- function(id, reactiveData, customBreakpoints, mic_or_sir, bp_log) {
       }
     )
 
+    #' Prepare the data for download in the Excel file.
+    #' Removes the colour and obs columns and adds percentage values to the antimicrobial columns.
+    #' 
+    #' @param data The data to prepare.
+    #' @return     The prepared data.
+    prepare_percentage_data <- function(data) {
+      fixed_cols <- c(yVar(), "n =")
+      drug_cols <- colnames(data)
+      drug_cols <- drug_cols[
+        !grepl("obs_", drug_cols) &
+          !grepl("colour_", drug_cols) &
+          !drug_cols %in% fixed_cols
+      ]
+
+      data %>%
+        select(-starts_with("colour_"), -starts_with("obs_")) |>
+        add_percentage_to_cols(drug_cols)
+    }
+
+    #' Prepare the data for download in the Excel file.
+    #' Selects only the columns with the number of isolates and renames them to match the
+    #' antimicrobial columns.
+    #' 
+    #' @param data The data to prepare.
+    #' @return     The prepared data.
+    prepare_isolate_data <- function(data) {
+      data %>%
+        select(1, starts_with("obs_")) %>%
+        rename_with(~ str_replace(., "obs_", ""))
+    }
+
     # Save Data ---------------------------------------------------------------
     output$save_table <- downloadHandler(
       filename = function() {
@@ -873,34 +944,26 @@ server <- function(id, reactiveData, customBreakpoints, mic_or_sir, bp_log) {
         if (outputType() == "classic") {
           
           full_df <- classicAbTableData()
-          
-          main_df <- full_df %>% select(-starts_with("colour_"))
-          sheets[["Antibiogram"]] <- main_df
-          
-          sample_size_df <- full_df %>% select(1, starts_with("obs_"))
+
+          sheets[["Antibiogram"]] <- prepare_percentage_data(full_df)
+
+          sample_size_df <- prepare_isolate_data(full_df)
           if (ncol(sample_size_df) > 1) {
             sheets[["Sample Size"]] <- sample_size_df
           }
-          
         } else if (outputType() == "classic_split") {
-          
           full_df_neg <- classicAbTableData()
           full_df_pos <- classicAbTableData2()
-          
-          main_df_neg <- full_df_neg %>% select(-starts_with("colour_"),
-                                                -starts_with("obs_"))
-          main_df_pos <- full_df_pos %>% select(-starts_with("colour_"),
-                                                -starts_with("obs_"))
-          
-          sheets[["Gram Negative"]] <- main_df_neg
-          sheets[["Gram Positive"]] <- main_df_pos
-          
-          sample_size_neg <- full_df_neg %>% select(1, starts_with("obs_"))
+
+          sheets[["Gram Negative"]] <- prepare_percentage_data(full_df_neg)
+          sheets[["Gram Positive"]] <- prepare_percentage_data(full_df_pos)
+
+          sample_size_neg <- prepare_isolate_data(full_df_neg)
           if (ncol(sample_size_neg) > 1) {
             sheets[["Gram Negative Sample Size"]] <- sample_size_neg
           }
-          
-          sample_size_pos <- full_df_pos %>% select(1, starts_with("obs_"))
+
+          sample_size_pos <- prepare_isolate_data(full_df_pos)
           if (ncol(sample_size_pos) > 1) {
             sheets[["Gram Positive Sample Size"]] <- sample_size_pos
           }
