@@ -72,6 +72,14 @@ server <- function(id, reactiveData, customBreakpoints, mic_or_sir, bp_log) {
       if ("Interpretation" %in% colnames(data)) {
         data$Interpretation <- AMR::as.sir(data$Interpretation)
       }
+      if (aggByGenus()) {
+        unique_mos <- unique(data$Microorganism)
+        # Replace each MO with its genus
+        for (mo in unique_mos) {
+          genus <- mo_genus(mo)
+          data$Microorganism[data$Microorganism == mo] <- genus
+        }
+      }
       return(data)
     })
 
