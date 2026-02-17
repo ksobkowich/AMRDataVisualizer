@@ -74,5 +74,5 @@ get_clinical_bps <- function(full_clinical_bps, filters = list()) {
 #' @return      The modified data frame with percentage signs added to the specified columns.
 add_percentage_to_cols <- function(data, cols) {
   data %>%
-    mutate(across(dplyr::any_of(cols), ~ ifelse(is.na(.) | . == "NA", ., paste0(., "%"))))
+    mutate(across(dplyr::any_of(cols), ~ ifelse(is.na(.) | . == "NA" | . == "", ., paste0(., "%"))))
 }
