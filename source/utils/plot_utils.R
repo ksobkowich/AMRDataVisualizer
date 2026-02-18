@@ -13,7 +13,7 @@ NULL
 #' @param controls                List of control parameters for the plot/table.
 #' @param staticData              Optional static data frame for additional information.
 #' @param table_type              Type of table to create: "percentage", "isolate", or "ci".
-#' @param show_n_col              Logical indicating whether to include the "n =" column in the table.
+#' @param show_n_col              Logical indicating whether to include the "Median n" column in the table.
 #' @param clopper_pearson_ci_data Optional data frame containing Clopper-Pearson confidence intervals.
 #' @return                        A list containing the plot and/or table items for the antibiogram.
 getAntibiogramPlotItems <- function(
@@ -30,7 +30,8 @@ getAntibiogramPlotItems <- function(
   staticData = NULL,
   table_type = "percentage",
   show_n_col = FALSE,
-  clopper_pearson_ci_data = NULL
+  clopper_pearson_ci_data = NULL,
+  ab_cell_width = 50
 ) {
   if (is.null(plotData) || nrow(plotData) == 0) {
     return(NULL)
@@ -46,7 +47,7 @@ getAntibiogramPlotItems <- function(
   }
 
   # Only keep the top `maxRows` most frequent microorganisms/source if needed.
-  if (controls$maxRows > length(unique(plotData[[controls$yVar]]))) {
+  if (controls$maxRows < length(unique(plotData[[controls$yVar]]))) {
     plotData <- plotData %>%
       group_by(!!sym(controls$yVar)) %>%
       mutate(Frequency = n()) %>%
@@ -80,30 +81,24 @@ getAntibiogramPlotItems <- function(
     )
 
   if (show_n_col) {
-    #' Want the "n =" column for both "isolate" and "percentage" table types.
+    #' Want the "Median n" column for both "isolate" and "percentage" table types.
     #' For "percentage" we want it to show in the app, but it needs to be removed
     #' later in the report download.
     #' For "isolate" we want it to show always.
     df_wide <- df_wide %>%
       rowwise() %>%
       mutate(
-        `n =` = paste0(
-          "(",
-          min(c_across(starts_with("obs_")), na.rm = TRUE),
-          " - ",
-          max(c_across(starts_with("obs_")), na.rm = TRUE),
-          ")"
-        )
+        `Median n` = median(c_across(starts_with("obs_")), na.rm = TRUE)
       ) %>%
       ungroup() %>%
-      select(!!sym(controls$yVar), `n =`, everything())
+      select(!!sym(controls$yVar), `Median n`, everything())
   } else {
     df_wide <- df_wide %>%
       ungroup() %>%
       select(!!sym(controls$yVar), everything())
   }
 
-  # If having the "n =" column there are 2 fixed column, otherwise only 1 fixed column.
+  # If having the "Median n" column there are 2 fixed column, otherwise only 1 fixed column.
   drug_start <- ifelse(show_n_col, 2, 1)
 
   n_drug <- length(unique(plotData$Antimicrobial))
@@ -116,7 +111,7 @@ getAntibiogramPlotItems <- function(
   drug_class_starts <- sapply(drug_group_list, function(x) min(x))
 
   if (drug_start == 2) {
-    #' We are including the "n =" column.
+    #' We are including the "Median n" column.
     #' So we need to shift the indices by 1.
     drug_class_starts <- drug_class_starts + 1
   }
@@ -157,7 +152,8 @@ getAntibiogramPlotItems <- function(
       drug_targets = drug_targets,
       showColors = controls$showColors,
       drug_class_starts = drug_class_starts,
-      table_type = table_type
+      table_type = table_type,
+      ab_cell_width = ab_cell_width
     )
 
     posTable <- classicAB(
@@ -166,7 +162,8 @@ getAntibiogramPlotItems <- function(
       drug_targets = drug_targets,
       showColors = controls$showColors,
       drug_class_starts = drug_class_starts,
-      table_type = table_type
+      table_type = table_type,
+      ab_cell_width = ab_cell_width
     )
 
     return(list(
@@ -182,7 +179,8 @@ getAntibiogramPlotItems <- function(
       drug_targets = drug_targets,
       showColors = controls$showColors,
       drug_class_starts = drug_class_starts,
-      table_type = table_type
+      table_type = table_type,
+      ab_cell_width = ab_cell_width
     )
 
     return(list(

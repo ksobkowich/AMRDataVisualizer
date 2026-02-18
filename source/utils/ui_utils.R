@@ -63,7 +63,7 @@ getBreakpointsMessage <- function(bp_row, isCustom = FALSE) {
   list(
     icon_class = "far fa-square",
     colour = "grey",
-    label = "Too few observations"
+    label = "Too few observations (<30)"
   ),
   list(
     icon_class = "fas fa-solid fa-square",

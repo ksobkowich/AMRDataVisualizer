@@ -6,6 +6,7 @@
 #' @param showColors Logical indicating whether to apply color coding.
 #' @param table_type Type of table to generate: "percentage", "isolate", or "ci".
 #' @param drug_class_starts Numeric vector indicating where drug class separators should be placed.
+#' @param ab_cell_width Numeric value for the width of antibiotic columns in pixels.
 #' @return A gt table formatted as a classic antibiogram.
 classicAB <- function(
   data,
@@ -13,16 +14,13 @@ classicAB <- function(
   drug_targets,
   showColors = TRUE,
   table_type = "percentage", # Can be "percentage", "isolate", or "ci"
-  drug_class_starts = NULL
+  drug_class_starts = NULL,
+  ab_cell_width = 50
 ) {
   fixed_cols <- 1
 
-  if ("n =" %in% colnames(data)) {
-    data <- data %>%
-      dplyr::select(-dplyr::any_of("n ="))
+  if ("Median n" %in% colnames(data)) {
     fixed_cols <- 1:2
-    obs_cols <- obs_cols - 1
-    drug_targets <- drug_targets - 1
   }
 
   abs <- colnames(data)[unique(c(obs_cols, drug_targets + 1))]
@@ -38,15 +36,43 @@ classicAB <- function(
     TRUE ~ ""
   )
 
+  data <- data %>%
+    mutate(across(everything(), ~ replace(., is.na(.), "")))
+
   if (table_type != "percentage") {
     #' Remove percentages columns.
     #' Make sure the the target table type columns are first after fixedCols.
     #' E.g., for table_type = "ci", move ci_<ab> columns next to fixedCols.
     data <- data %>%
       dplyr::select(-dplyr::any_of(abs)) %>%
-      dplyr::select(any_of(c(colnames(data)[fixed_cols], paste0(column_prefix, abs))), everything())
+      dplyr::select(
+        any_of(c(colnames(data)[fixed_cols], paste0(column_prefix, abs))),
+        everything()
+      )
     obs_cols <- which(colnames(data) %in% paste0("obs_", abs))
     drug_targets <- which(colnames(data) %in% paste0(column_prefix, abs)) - 1
+  } else {
+    # Add percentage signs to the appropriate columns
+    data <- data %>%
+      add_percentage_to_cols(abs)
+
+    # Create the tooltip for the table displayed on the ab tab
+    for (ab in abs) {
+      prop_col <- ab
+      obs_col <- paste0("obs_", ab)
+      ci_col <- paste0("ci_", ab)
+
+      if (all(c(prop_col, obs_col, ci_col) %in% colnames(data))) {
+        data[[prop_col]] <- mapply(
+          ab_tooltip,
+          value = data[[prop_col]],
+          obs = data[[obs_col]],
+          ci = data[[ci_col]],
+          SIMPLIFY = TRUE,
+          USE.NAMES = FALSE
+        )
+      }
+    }
   }
 
   plt <- data %>%
@@ -97,16 +123,15 @@ classicAB <- function(
     gt::cols_label(.list = label_map) # Remove prefix from ab column labels
 
   if (!is.null(drug_class_starts)) {
-    drug_col_width <- ifelse(table_type == "ci", 60, 40)
     width_list <- Map(
       function(col, width) as.formula(paste0("`", col, "` ~ gt::px(", width, ")")),
       target_ab_cols,
-      drug_col_width
+      ab_cell_width
     )
 
     # Add the fixed column widths
     width_list <- c(
-      list(gt::matches("^n =") ~ gt::px(120)),
+      list(gt::matches("^Median n") ~ gt::px(100)),
       list(1 ~ gt::px(180)),
       width_list
     )
@@ -159,33 +184,77 @@ classicAB <- function(
       # Rotate drug column labels
       gt::opt_css(
         css = "
-            #classic-ab-table .gt_col_heading.gt_left {
-            writing-mode: vertical-rl;
-            transform: scale(-1);
+            #classic-ab-table .gt_col_heading.gt_left,
+            #classic-ab-table .rt-thead .rt-th.rt-align-left {
+              writing-mode: vertical-rl;
+              transform: scale(-1);
             }
+            #classic-ab-table .rt-table,
+            #classic-ab-table .rt-thead .rt-th.rt-align-center,
             #classic-ab-table .gt_col_headings {
-            border-top-color: white !important;
+              border-top-color: white !important;
+            }
+            #classic-ab-table .rt-thead .rt-th.rt-align-left {
+              border-bottom-color: white !important;
+              border-top: 2px solid rgb(211, 211, 211);
             }
             /** Make sure fixed columns don't move */
-            #classic-ab-table .gt_center {
-              position: sticky;
+            #classic-ab-table .gt_center,
+            #classic-ab-table .rt-align-center {
+              position: sticky !important;
               background-color: white;
               z-index: 2;
             }
-            
+            #classic-ab-table .rt-thead .rt-align-center .rt-th-inner {
+              display: flex;
+              align-items: end;
+              justify-content: center;
+            }
+            #classic-ab-table .rt-thead .rt-th.rt-align-left .rt-th-inner {
+              display: flex;
+              align-items: center;
+            }
+            #classic-ab-table .rt-tbody .rt-td:first-child.rt-align-center,
             #classic-ab-table .gt_table_body tr td:first-child.gt_center,
+            #classic-ab-table .rt-thead .rt-th:first-child.rt-align-center,
             #classic-ab-table .gt_col_headings th:first-child.gt_center {
               left: 0;
             }
+            #classic-ab-table .rt-tbody .rt-td:nth-child(2).rt-align-center,
             #classic-ab-table .gt_table_body tr td:nth-child(2).gt_center,
+            #classic-ab-table .rt-thead .rt-th:nth-child(2).rt-align-center,
             #classic-ab-table .gt_col_headings th:nth-child(2).gt_center {
               left: 180px;
             }
             #classic-ab-table * {
               font-family: 'Carme', sans-serif;
             }
+            #classic-ab-table .rt-thead .rt-th {
+              font-weight: bold;
+            }
             "
+      ) %>%
+      gt::opt_interactive(
+        use_pagination = FALSE,
+        use_pagination_info = FALSE,
+        use_sorting = FALSE,
+        use_search = FALSE
       )
   }
   return(plt)
+}
+
+#' Helper function to create the tooltip for the percentage table in the ab tab.
+#' Displays the observed count and confidence interval for each cell.
+#'
+#' @param value The percentage value to display in the cell.
+#' @param obs The observed count for the cell.
+#' @param ci The confidence interval for the cell.
+#' @return A HTML div element with the tooltip information.
+ab_tooltip <- function(value, obs, ci) {
+  tags$div(
+    title = paste0("Median n = ", obs, ", CI = ", ci),
+    value
+  ) %>%
+    as.character()
 }
