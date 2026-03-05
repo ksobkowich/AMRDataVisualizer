@@ -67,7 +67,7 @@ The AMR Visualizer is developed and maintained by a multidisciplinary team with 
 ### Contributors  
 *(alphabetical order by surname)*  
 
-Gayatri Anil · Wendy Anne Beauvais · Emma Bollig · Melissa Boyd · Stephen Cole · Claudia Cobo-Ángel · Anne Deckert · Jaclyn Dietrich · Amy Fridlund · Amelia Hayward Frye · Joshua Glass · Cassandra Guarino · Carolyn (Lynn) Guptill-Yoran · Abdolreza Mosaddegh · Maho Okumura · Zvonimir Poljak · Santosh Kumar Satapathy · Donald Szlosek · Scott Weese
+Gayatri Anil · Wendy Anne Beauvais · Emma Bollig · Melissa Boyd · Stephen Cole · Claudia Cobo-Ángel · Anne Deckert · Jaclyn Dietrich · Amy Fridlund · Amelia Hayward Frye · Joshua Glass · Cassandra Guarino · Carolyn (Lynn) Guptill-Yoran · Abdolreza Mosaddegh · Maho Okumura · Zvonimir Poljak · Giovanna Vinci Roberto · Santosh Kumar Satapathy · Donald Szlosek · Scott Weese
 
 ---
 
