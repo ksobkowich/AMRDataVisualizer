@@ -92,7 +92,25 @@ dashboardPage(
       tabItem(tabName = "mdrTab", mdr_tab$ui("mdrModule")),
       tabItem(tabName = "exploreTab", explore_tab$ui("exModule")),
       tabItem(tabName = "aboutTab", about_tab$ui("aboutModule"))
+    ),
+    
+    
+    # Fixed footer
+    tags$footer(
+      class = "main-footer",
+      tags$div(
+        class = "footer-logos",
+        img(src = "img/cornell-reduced-wordmark-red.png", alt = "Cornell University"),
+        img(src = "img/OVC__GUELPH_FULLCOLOUR_WHITEBG_V1_1.5IN_H_300PPI.png", alt = "Guelph"), 
+        img(src = "img/epi-logo.png", alt = "epi"),
+        img(src = "img/usda.png", alt = "USDA")
+      ),
+      tags$p(
+        class = "footer-text",
+        "© 2025 AMR Visualizer | The AMR Visualizer was supported by the U.S. Department of Agriculture's Animal and Plant Health Inspection Service (APHIS). This work does not necessarily represent the views of the U.S. Department of Agriculture’s Animal and Plant Health Inspection Service (APHIS)."
+      )
     )
+    
   )
 
   # ---------------------------------------------------------------------------
