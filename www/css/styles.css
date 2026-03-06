@@ -824,3 +824,66 @@ h6 {
   line-height: 0;
   margin-top: 25px;
 }
+
+
+
+
+
+/* Fixed Footer Styles */
+.main-footer {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 90px;  
+  background-color: #ffffff;
+  border-top: 2px solid #44cdc4;  
+  padding: 15px 20px;
+  text-align: center;
+  z-index: 1030;
+  box-shadow: 0 -2px 4px rgba(0,0,0,0.1);
+}
+
+.main-footer .footer-logos {
+  margin-bottom: 8px;  /* Increased spacing */
+}
+
+.main-footer .footer-logos img {
+  height: 35px;  /* ← INCREASE THIS (was 25px) */
+  margin: 0 15px;  /* More spacing between logos */
+  vertical-align: middle;
+}
+
+.main-footer .footer-text {
+  margin: 0;
+  color: #666;
+  font-size: 11px;  /* ← INCREASE THIS (was 11px) */
+  line-height: 1.3;
+  padding-bottom: 15px;
+}
+
+/* Add padding to body content so footer doesn't overlap */
+.content-wrapper {
+  padding-bottom: 120px !important;  /* ← INCREASE THIS to match new footer height */
+}
+
+/* Responsive adjustments - keep these smaller for mobile */
+@media (max-width: 768px) {
+  .main-footer {
+    height: 80px;  /* Smaller on mobile */
+    padding: 10px;
+  }
+  
+  .main-footer .footer-logos img {
+    height: 30px;  /* Reasonable size for mobile */
+    margin: 0 8px;
+  }
+  
+  .main-footer .footer-text {
+    font-size: 12px;  /* Reasonable size for mobile */
+  }
+  
+  .content-wrapper {
+    padding-bottom: 100px !important;
+  }
+}
