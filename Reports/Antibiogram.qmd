@@ -284,6 +284,7 @@ Antibiograms are a summary of antimicrobial susceptibility data, showing the per
 <!-- Add this somewhere in your document as a test -->
 <img src="cornell-reduced-wordmark-red.png" alt="Test" style="width: 100px;">
 
+
 <div class="footnotes">
 
 <span class="footnote-header">
