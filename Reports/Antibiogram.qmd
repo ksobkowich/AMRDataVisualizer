@@ -281,6 +281,8 @@ Antibiograms are a summary of antimicrobial susceptibility data, showing the per
 
 
 <img src="report-bp-example.png" alt="Breakpoint diagram" id="bp-img"/>
+<!-- Add this somewhere in your document as a test -->
+<img src="cornell-reduced-wordmark-red.png" alt="Test" style="width: 100px;">
 
 <div class="footnotes">
 
@@ -293,3 +295,21 @@ Footnotes
 </div>
 
 </div>
+
+```{=html}
+
+
+<footer class="main-footer">
+  <div class="footer-logos">
+    <img src="cornell-reduced-wordmark-red.png" alt="Cornell University">
+    <img src="OVC__GUELPH_FULLCOLOUR_WHITEBG_V1_1.5IN_H_300PPI.png" alt="University of Guelph">
+    <img src="epi-logo.png" alt="epi">
+    <img src="usda.png" alt="USDA">
+  </div>
+  <p class="footer-text">
+    © 2025 AMR Visualizer | The AMR Visualizer was supported by the U.S. Department of Agriculture's Animal and Plant Health Inspection Service (APHIS). This work does not necessarily represent the views of the U.S. Department of Agriculture's Animal and Plant Health Inspection Service (APHIS).
+  </p>
+</footer>
+
+
+```
