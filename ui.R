@@ -101,7 +101,7 @@ dashboardPage(
       tags$div(
         class = "footer-logos",
         img(src = "img/cornell-reduced-wordmark-red.png", alt = "Cornell University"),
-        img(src = "img/OVC__GUELPH_FULLCOLOUR_WHITEBG_V1_1.5IN_H_300PPI.png", alt = "Guelph"), 
+        img(src = "img/OVC__GUELPH_FULLCOLOUR_WHITEBG_V1_1.5IN_H_300PPI.png", alt = "University of Guelph"), 
         img(src = "img/epi-logo.png", alt = "epi"),
         img(src = "img/usda.png", alt = "USDA")
       ),

@@ -585,6 +585,10 @@ server <- function(id, reactiveData, customBreakpoints, mic_or_sir, bp_log) {
             "report.css",
             "logo.png",
             "report-bp-example.png",
+            "cornell-reduced-wordmark-red.png",
+            "OVC__GUELPH_FULLCOLOUR_WHITEBG_V1_1.5IN_H_300PPI.png",
+            "epi-logo.png",                
+            "usda.png",                             
             "isolate_table.html",
             "isolate_table2.html",
             "isolate_table.png",
@@ -605,6 +609,11 @@ server <- function(id, reactiveData, customBreakpoints, mic_or_sir, bp_log) {
       stylesPath <- normalizePath(file.path(src, "www", "css", "report.css"))
       logoPath <- normalizePath(file.path(src, "www", "img", "logoDark.png"))
       bpImgPath <- normalizePath(file.path(src, "www", "img", "report-bp-example.png"))
+      
+      cornellLogoPath <- normalizePath(file.path(src, "www", "img", "cornell-reduced-wordmark-red.png"))
+      guelphLogoPath <- normalizePath(file.path(src, "www", "img", "OVC__GUELPH_FULLCOLOUR_WHITEBG_V1_1.5IN_H_300PPI.png"))
+      epiLogoPath <- normalizePath(file.path(src, "www", "img", "epi-logo.png"))
+      usdaLogoPath <- normalizePath(file.path(src, "www", "img", "usda.png"))
 
       uiUtilsPath <- normalizePath(file.path(src, "source", "utils", "ui_utils.R"))
       reportUtilsPath <- normalizePath(file.path(src, "source", "utils", "report_utils.R"))
@@ -614,6 +623,11 @@ server <- function(id, reactiveData, customBreakpoints, mic_or_sir, bp_log) {
       file.copy(stylesPath, "report.css", overwrite = TRUE)
       file.copy(logoPath, "logo.png", overwrite = TRUE)
       file.copy(bpImgPath, "report-bp-example.png", overwrite = TRUE)
+
+      file.copy(cornellLogoPath, "cornell-reduced-wordmark-red.png", overwrite = TRUE)
+      file.copy(guelphLogoPath, "OVC__GUELPH_FULLCOLOUR_WHITEBG_V1_1.5IN_H_300PPI.png", overwrite = TRUE)
+      file.copy(epiLogoPath, "epi-logo.png", overwrite = TRUE)
+      file.copy(usdaLogoPath, "usda.png", overwrite = TRUE)
 
       file.copy(uiUtilsPath, "ui_utils.R", overwrite = TRUE)
       file.copy(reportUtilsPath, "report_utils.R", overwrite = TRUE)
