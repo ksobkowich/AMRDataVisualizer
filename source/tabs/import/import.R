@@ -63,7 +63,7 @@ server <- function(id) {
       sirCol = NULL,
       micSignCol = NULL,
       micValCol = NULL,
-      selectedBreakpoint = NULL,
+      selectedBreakpoint = "CLSI 2025",
       additionalCols = NULL
     )
     displayCleanedData <- reactiveVal(FALSE)
