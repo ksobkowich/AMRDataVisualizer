@@ -174,3 +174,43 @@ g_fullClinicalBreakpoints <- getFullClinicalBps()
 # Increase maximum allowable file upload
 # ------------------------------------------------------------------------------
 options(shiny.maxRequestSize = 1000 * 1024^2)
+
+
+
+
+
+# ------------------------------------------------------------------------------
+# ---- Headless Chrome initializer ----
+# ------------------------------------------------------------------------------
+init_headless_chrome <- local({
+  .done <- FALSE
+  function() {
+    if (.done) return(invisible())
+    .done <<- TRUE
+
+    # Required in restricted containers (Connect Cloud)
+    chromote::set_chrome_args(c(
+      "--no-sandbox",             # bypass userns sandbox in containers
+      "--disable-dev-shm-usage",  # avoid small /dev/shm crashes
+      "--disable-gpu",            # standard for headless on some hosts
+      c("--force-color-profile","srgb"),
+      "--disable-extensions",
+      "--mute-audio"
+    ))
+
+    # If new headless causes trouble in your environment, force the old mode
+    options(chromote.headless = "old")  # or Sys.setenv(CHROMOTE_HEADLESS = "old")
+
+    # Optional diagnostics: print the exact Chrome command to your logs
+    options(chromote.launch.echo_cmd = TRUE)
+
+    # Optional: longer launch timeout on slower cold starts
+    options(chromote.timeout = 20)
+
+    # Try to log Chrome/chromote info (non-fatal if it fails)
+    try({
+      info <- chromote::chromote_info()
+      message("Chromote info: ", paste(capture.output(str(info)), collapse = " "))
+    }, silent = TRUE)
+  }
+})

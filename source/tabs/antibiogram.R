@@ -48,6 +48,11 @@ server <- function(id, reactiveData, customBreakpoints, mic_or_sir, bp_log) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
+    
+    # >>> Ensure headless Chrome is correctly configured on Connect
+    init_headless_chrome()
+
+
     # ------------------------------------------------------------------------------
     # Sub-modules
     # ------------------------------------------------------------------------------
@@ -552,12 +557,17 @@ server <- function(id, reactiveData, customBreakpoints, mic_or_sir, bp_log) {
         file.remove(pngName)
       }
 
+
+      html_path <- normalizePath(htmlName, winslash = "/", mustWork = TRUE)
+      url <- paste0("file://", html_path)
+
       webshot2::webshot(
-        url = htmlName,
-        file = pngName,
+        url   = url,
+        file  = pngName,
         vwidth = pngWidth,
-        zoom = 2 # For higher resolution
+        zoom   = 2  # higher resolution
       )
+
     }
 
     #' Download the Antibiogram report and an HTML file.
