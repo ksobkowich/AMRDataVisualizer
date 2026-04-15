@@ -24,6 +24,7 @@ library(stringr)
 source("ui_utils.R")
 source("report_utils.R")
 source("general_utils.R")
+source("version.R") 
 
 filters <- params$filters
 controls <- params$controls
@@ -36,7 +37,15 @@ pg2_summary <- get_report_summary(filters, params$allFilterValues, 2)
 pg3_summary <- get_report_summary(filters, params$allFilterValues, 3)
 next_footnote_number <- pg1_summary$num_footnotes + 1 # Summaries have the same footnotes - use first
 
-final_footnote <- p("This antibiogram was generated with AMR Visualizer, an RShiny App [insert citation].", style = "margin-top: 10px;")
+final_footnote <- HTML(
+  paste0(
+    '<p style="margin-top: 10px;">This antibiogram was generated with AMR Visualizer v', APP_VERSION, 
+    ', an RShiny App (Sobkowich et al., ',
+    '<a href="https://github.com/AMR-Visualizer/AMRDataVisualizer" target="_blank">GitHub Repo</a>, ',
+    'accessed ', format(Sys.Date(), "%B %d, %Y"), ').</p>'
+  )
+)
+
 
 table_legend <- NULL
 
