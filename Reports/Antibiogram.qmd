@@ -41,7 +41,7 @@ final_footnote <- HTML(
   paste0(
     '<p style="margin-top: 10px;">This antibiogram was generated with AMR Visualizer v', APP_VERSION, 
     ', an RShiny App (Sobkowich et al., ',
-    '<a href="https://github.com/AMR-Visualizer/AMRDataVisualizer" target="_blank">GitHub Repo</a>, ',
+    '<a href="https://github.com/AMR-Visualizer/AMRDataVisualizer" target="_blank">https://github.com/AMR-Visualizer/AMRDataVisualizer</a>, ',
     'accessed ', format(Sys.Date(), "%B %d, %Y"), ').</p>'
   )
 )
