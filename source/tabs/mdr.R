@@ -87,11 +87,19 @@ server <- function(id, reactiveData) {
 
     # Matrix data used in the plot
     matrixData <- reactive({
+      req(plotData())
+      
+      
+      # Fix the grouped summarise warning and add better debugging
       mdrData <- plotData() %>%
         group_by(ID, Microorganism) %>%
-        filter(!is.na(Interpretation)) |> # TODO: Check if this is allowed.
-        summarise(n_classes = n_distinct(Class[Interpretation %in% c("R", "I")])) %>%
+        filter(!is.na(Interpretation)) %>%
+        summarise(
+          n_classes = n_distinct(Class[Interpretation %in% c("R", "I")]),
+          .groups = "drop"  # Fix the warning
+        ) %>%
         mutate(mdro = ifelse(n_classes > 2, 1, 0))
+      
 
       data <- plotData() %>%
         left_join(mdrData, by = c("ID", "Microorganism")) %>%
@@ -106,28 +114,52 @@ server <- function(id, reactiveData) {
         group_by(ID, Drug) %>%
         summarize(Interpretation = max(Interpretation, na.rm = TRUE), .groups = "drop") %>%
         pivot_wider(id_cols = ID, names_from = Drug, values_from = Interpretation) %>%
-        mutate(across(everything(), ~ replace(., . == "NULL", NA))) %>%
-        select_if(~ sum(!is.na(.)) >= 30) %>%
+        mutate(across(everything(), ~ replace(., . == "NULL", NA)))
+      
+      
+      # Filter columns with at least 30 non-NA observations AND some variation
+      data_filtered <- data %>%
         select(-ID) %>%
+        select_if(~ sum(!is.na(.)) >= 30 & length(unique(.[!is.na(.)])) > 1) %>%  # Add variation check
         select(sort(names(.)))
-      return(data)
+      
+      
+      
+      return(data_filtered)
     })
 
     # Information needed for the plot based on the matrix data
     plotConfig <- reactive({
       req(matrixData())
+
       data <- matrixData()
+      
+      
+      if (nrow(data) == 0 || ncol(data) == 0) {
+        cat("No data for correlation calculation\n")
+        return(list(data = data, phi = matrix(0,0,0), labels = character(0), counts = matrix(0,0,0)))
+      }
 
       result <- cor_and_counts(data)
       phi <- result$cor
       counts <- result$count
+      
 
+      # This line might be removing everything - let's be more lenient
       phi[counts < 30] <- NA
+      
 
       keep <- !apply(is.na(phi), 1, all)
+      
+      if (sum(keep) == 0) {
+        cat("No columns kept after filtering\n")
+        return(list(data = data, phi = matrix(0,0,0), labels = character(0), counts = matrix(0,0,0)))
+      }
+      
       phi <- phi[keep, keep]
       counts <- counts[keep, keep]
-      labels <- colnames(matrixData)[keep]
+      labels <- colnames(data)[keep]
+      
 
       return(list(
         data = data,
@@ -137,13 +169,18 @@ server <- function(id, reactiveData) {
       ))
     })
 
+
     # ------------------------------------------------------------------------------
     # Render UI
     # ------------------------------------------------------------------------------
 
     output$content <- renderUI({
       req(plotData())
-      if (!is.null(plotData()) && nrow(plotData()) > 0 && length(plotConfig()$labels) > 0) {
+      
+      config <- plotConfig()  # Get the config first
+      
+      
+      if (!is.null(plotData()) && nrow(plotData()) > 0 && length(config$labels) > 0) {
         tagList(
           wellPanel(
             style = "overflow-x: scroll; overflow-y: scroll; max-height: 80vh;",
@@ -256,28 +293,32 @@ server <- function(id, reactiveData) {
     #'
     #' @param data [Description]
     #' @return [Description]
+    #' 
+    #' 
     cor_and_counts <- function(data) {
-      n <- ncol(data)
-      cor_matrix <- matrix(NA, n, n)
-      count_matrix <- matrix(0, n, n)
-      for (i in 1:n) {
-        for (j in i:n) {
-          non_na_pair <- complete.cases(data[, c(i, j)])
-          if (sum(non_na_pair) >= 30) {
-            # browser()
-            cor_matrix[i, j] <- cor(
-              data[non_na_pair, i],
-              data[non_na_pair, j],
-              use = "complete.obs"
-            )
-            cor_matrix[j, i] <- cor_matrix[i, j]
-            count_matrix[i, j] <- sum(non_na_pair)
-            count_matrix[j, i] <- count_matrix[i, j]
-          }
-        }
+    # Use built-in R correlation with pairwise complete observations
+    cor_matrix <- cor(data, use = "pairwise.complete.obs", method = "pearson")
+    
+    # Calculate counts for each pair
+    n <- ncol(data)
+    count_matrix <- matrix(0, n, n)
+    
+    for (i in 1:n) {
+      for (j in 1:n) {
+        # Count non-NA pairs
+        valid_pairs <- !is.na(data[, i]) & !is.na(data[, j])
+        count_matrix[i, j] <- sum(valid_pairs)
       }
-      list(cor = cor_matrix, count = count_matrix)
     }
+    
+    # Set correlations to NA where we don't have enough observations
+    cor_matrix[count_matrix < 30] <- NA
+    
+    list(cor = cor_matrix, count = count_matrix)
+  }
+
+
+
 
     # ------------------------------------------------------------------------------
     # Observes
