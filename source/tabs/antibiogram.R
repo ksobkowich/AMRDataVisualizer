@@ -610,7 +610,8 @@ server <- function(id, reactiveData, customBreakpoints, mic_or_sir, bp_log) {
             "low_counts_flag.txt",
             "ui_utils.R",
             "report_utils.R",
-            "general_utils.R"
+            "general_utils.R",
+            "version.R"
           ),
           recursive = TRUE
         )
@@ -628,6 +629,7 @@ server <- function(id, reactiveData, customBreakpoints, mic_or_sir, bp_log) {
       uiUtilsPath <- normalizePath(file.path(src, "source", "utils", "ui_utils.R"))
       reportUtilsPath <- normalizePath(file.path(src, "source", "utils", "report_utils.R"))
       generalUtilsPath <- normalizePath(file.path(src, "source", "utils", "utils.R"))
+      versionPath <- normalizePath(file.path(src, "source", "utils", "version.R")) 
 
       file.copy(normalizedReport, "Antibiogram.qmd", overwrite = TRUE)
       file.copy(stylesPath, "report.css", overwrite = TRUE)
@@ -642,6 +644,8 @@ server <- function(id, reactiveData, customBreakpoints, mic_or_sir, bp_log) {
       file.copy(uiUtilsPath, "ui_utils.R", overwrite = TRUE)
       file.copy(reportUtilsPath, "report_utils.R", overwrite = TRUE)
       file.copy(generalUtilsPath, "general_utils.R", overwrite = TRUE)
+      file.copy(versionPath, "version.R", overwrite = TRUE)
+
 
       filtered_data <- filteredData()
       current_controls <- controls()

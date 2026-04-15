@@ -103,4 +103,4 @@ In *Visual Mode*, circle **color** denotes antimicrobial class, and
 
 ## 💬 Feedback<a name="feedback"></a>
 
-We are continually making improvements to this app and this display. Please report issues or suggestions via [GitHub Issues](https://github.com/ksobkowich/AMRDataVisualizer/issues).
+We are continually making improvements to this app and this display. Please report issues or suggestions via [GitHub Issues](https://github.com/AMR-Visualizer/AMRDataVisualizer/issues).

@@ -10,7 +10,7 @@ ui <- function(id) {
     
     tags$div(
       id = ns("about-container"),
-      includeMarkdown("Documentation/about.md")
+      includeMarkdown("Documentation/about_processed.md")
     )
   )
 }
@@ -25,3 +25,5 @@ about_tab <- list(
   ui = ui,
   server = server
 )
+
+
