@@ -86,8 +86,11 @@ body {
   align-items: flex-start;
   border-top: 1px solid var(--light-grey);
   margin-top: 50px;
+  margin-bottom: 100px; 
   font-size: 0.95em;
   padding-top: 20px;
+  padding-bottom: 80px;
+  position: relative;
 }
 .footnotes p {
   margin: 0;
@@ -166,6 +169,22 @@ body {
 }
 
 @media print {
+
+    @page {
+    margin-bottom: 100px; 
+  }
+
+    .footnotes {
+    margin-bottom: 80px; 
+  }
+
+    /* Prevent footnotes from overlapping footer */
+  .footnotes {
+    margin-bottom: 0;
+    padding-bottom: 70px; 
+  }
+
+
   /* Allow colours to print correctly */
   * {
     -webkit-print-color-adjust: exact;
@@ -252,15 +271,16 @@ body {
   }
   
   .main-footer {
-    position: fixed;
-    bottom: 0;
+    position: fixed !important;
+    bottom: 0 !important;
     left: 0;
     right: 0;
     height: 60px;
     padding: 8px 15px;
     margin-top: 0;
     box-shadow: none;
-    z-index: 1000;
+    z-index: 1001 !important;
+    background-color: #ffffff !important;
   }
   
   .main-footer .footer-logos {

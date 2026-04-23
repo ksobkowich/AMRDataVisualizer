@@ -77,33 +77,7 @@ server <- function(id, reactiveData, customBreakpoints, mic_or_sir, bp_log) {
     # Reactives
     # ------------------------------------------------------------------------------
 
-  debugInfo <- reactive({
-    data <- filteredData()
-    unique_count <- length(unique(data[[yVar()]]))
-    total_rows <- nrow(data)
-    
-    cat("=== DEBUG MAX ROWS ===\n")
-    cat("maxRows setting:", maxRows(), "\n")
-    cat("lowCounts setting:", lowCounts(), "\n")
-    cat("yVar:", yVar(), "\n")
-    cat("Unique", yVar(), "count:", unique_count, "\n")
-    cat("Total data rows:", total_rows, "\n")
-    cat("sortBy:", sortBy(), "\n")
-    
-    if (nrow(data) > 0) {
-      top_orgs <- data %>%
-        group_by(!!sym(yVar())) %>%
-        summarise(total_obs = sum(obs), .groups = 'drop') %>%
-        arrange(desc(total_obs)) %>%
-        slice_head(n = 5)
-      cat("Top organisms:\n")
-      print(top_orgs)
-    }
-    
-    cat("=== END DEBUG ===\n")
-    
-    return(list(unique_count = unique_count, total_rows = total_rows))
-  })
+
 
     plotData <- reactive({
       data <- filters$filteredData()
@@ -186,74 +160,53 @@ server <- function(id, reactiveData, customBreakpoints, mic_or_sir, bp_log) {
     })
 
     # First filter the data to include in the plot
-# First filter the data to include in the plot
-filteredData <- reactive({
-  yVar_val <- yVar()
+    filteredData <- reactive({
+      yVar_val <- yVar()
 
-  data <- plotData() %>%
-    filter(Interpretation %in% c("S", "R", "I")) %>%
-    mutate(
-      Interp = Interpretation,
-      Interpretation = ifelse(Interpretation == "S", 1, 0),
-      Microorganism = if (aggByGenus()) mo_genus(Microorganism) else Microorganism
-    ) %>%
-    group_by(!!sym(yVar_val), Antimicrobial, Class) %>%
-    summarise(
-      Interp = first(Interp),
-      num_susceptible = sum(Interpretation == 1),
-      obs = n(),
-      prop = round(mean(Interpretation == 1), 3),
-      .groups = 'drop'
-    ) %>%
-    mutate(size = cut(prop, breaks = c(0, 0.7, 0.9, 1), labels = c("s", "m", "l"))) %>%
-    {
-      if (yVar_val == "Microorganism") {
-        mutate(., short_form = shorten_bacteria_names(.[[yVar_val]]))
-      } else {
+      data <- plotData() %>%
+        filter(Interpretation %in% c("S", "R", "I")) %>%
         mutate(
-          .,
-          short_form = ifelse(
-            str_length(.[[yVar_val]]) > 15,
-            str_c(str_sub(.[[yVar_val]], 1, 15), "..."),
-            .[[yVar_val]]
-          )
-        )
+          Interp = Interpretation,
+          Interpretation = ifelse(Interpretation == "S", 1, 0),
+          Microorganism = if (aggByGenus()) mo_genus(Microorganism) else Microorganism
+        ) %>%
+        group_by(!!sym(yVar_val), Antimicrobial, Class) %>%
+        summarise(
+          Interp = first(Interp),
+          num_susceptible = sum(Interpretation == 1),
+          obs = n(),
+          prop = round(mean(Interpretation == 1), 3),
+          .groups = 'drop'
+        ) %>%
+        mutate(size = cut(prop, breaks = c(0, 0.7, 0.9, 1), labels = c("s", "m", "l"))) %>%
+        {
+          if (yVar_val == "Microorganism") {
+            mutate(., short_form = shorten_bacteria_names(.[[yVar_val]]))
+          } else {
+            mutate(
+              .,
+              short_form = ifelse(
+                str_length(.[[yVar_val]]) > 15,
+                str_c(str_sub(.[[yVar_val]], 1, 15), "..."),
+                .[[yVar_val]]
+              )
+            )
+          }
+        } %>%
+        arrange(Class, Antimicrobial) %>%
+        add_ab_cell_colours()
+      
+      # Apply low count filtering if needed
+      if (lowCounts() == "Exclude") {
+        data <- data %>%
+          filter(obs >= 30)
       }
-    } %>%
-    arrange(Class, Antimicrobial) %>%
-    add_ab_cell_colours()
-  
-  # Apply low count filtering first if needed
-  if (lowCounts() == "Exclude") {
-    data <- data %>%
-      filter(obs >= 30)
-  }
-  
-  # Now apply maxRows limit - get the top N organisms/sources by frequency
-  top_y_vars <- data %>%
-    group_by(!!sym(yVar_val)) %>%
-    summarise(total_obs = sum(obs), .groups = 'drop') %>%
-    {
-      if (sortBy() == "Frequency") {
-        arrange(., desc(total_obs))
-      } else if (sortBy() == "Alphabetical") {
-        arrange(., !!sym(yVar_val))
-      } else if (sortBy() == "Gram Stain" && yVar_val == "Microorganism") {
-        mutate(., gram_stain = mo_gramstain(!!sym(yVar_val))) %>%
-        arrange(gram_stain, desc(total_obs))
-      } else {
-        arrange(., desc(total_obs))
-      }
-    } %>%
-    slice_head(n = maxRows()) %>%
-    pull(!!sym(yVar_val))
-  
-  # Filter data to only include the selected organisms/sources
-  data <- data %>%
-    filter(!!sym(yVar_val) %in% top_y_vars)
-  
-  return(data)
-})
+      
+      return(data)
+    })
+
+
+
 
     #' The type of output to generate.
     #'
@@ -499,8 +452,6 @@ filteredData <- reactive({
     output$classicAB <- gt::render_gt({
       req(outputType() %in% c("classic", "classic_split"), !is.null(classicAbTable()))
 
-        # Trigger debug info
-        debug <- debugInfo()
 
       classicAbTable()
 
