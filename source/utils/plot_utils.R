@@ -46,14 +46,37 @@ getAntibiogramPlotItems <- function(
       )
   }
 
+  # Apply low count filtering BEFORE maxRows limiting
+  if (controls$lowCounts == "Exclude") {
+    plotData <- plotData %>%
+      filter(obs >= 30)
+  }
+
   # Only keep the top `maxRows` most frequent microorganisms/source if needed.
   if (controls$maxRows < length(unique(plotData[[controls$yVar]]))) {
-    plotData <- plotData %>%
+    
+    # Get top N organisms/sources by total observations
+    top_y_vars <- plotData %>%
       group_by(!!sym(controls$yVar)) %>%
-      mutate(Frequency = n()) %>%
-      filter(., Frequency >= min(tail(sort(unique(.$Frequency)), controls$maxRows))) %>%
-      ungroup() %>%
-      select(-Frequency)
+      summarise(total_obs = sum(obs), .groups = 'drop') %>%
+      {
+        if (controls$sortBy == "Frequency") {
+          arrange(., desc(total_obs))
+        } else if (controls$sortBy == "Alphabetical") {
+          arrange(., !!sym(controls$yVar))
+        } else if (controls$sortBy == "Gram Stain" && controls$yVar == "Microorganism") {
+          mutate(., gram_stain = mo_gramstain(!!sym(controls$yVar))) %>%
+          arrange(gram_stain, desc(total_obs))
+        } else {
+          arrange(., desc(total_obs))
+        }
+      } %>%
+      slice_head(n = controls$maxRows) %>%
+      pull(!!sym(controls$yVar))
+    
+    # Filter data to only include the selected organisms/sources
+    plotData <- plotData %>%
+      filter(!!sym(controls$yVar) %in% top_y_vars)
   }
 
   # If there is no colour column, add it based on prop and obs.
@@ -72,7 +95,6 @@ getAntibiogramPlotItems <- function(
       "ci"
     ))) %>%
     mutate(prop = round(prop * 100, 0)) %>%
-    filter(if (controls$lowCounts == "Exclude") obs >= 30 else TRUE) %>%
     pivot_wider(
       id_cols = !!sym(controls$yVar),
       names_from = Antimicrobial,
@@ -88,7 +110,7 @@ getAntibiogramPlotItems <- function(
     df_wide <- df_wide %>%
       rowwise() %>%
       mutate(
-        `Median n` = median(c_across(starts_with("obs_")), na.rm = TRUE)
+        `Median n` = round(median(c_across(starts_with("obs_")), na.rm = TRUE), 0)
       ) %>%
       ungroup() %>%
       select(!!sym(controls$yVar), `Median n`, everything())

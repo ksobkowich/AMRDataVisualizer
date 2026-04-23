@@ -39,8 +39,8 @@ next_footnote_number <- pg1_summary$num_footnotes + 1 # Summaries have the same 
 
 final_footnote <- HTML(
   paste0(
-    '<p style="margin-top: 10px;">This antibiogram was generated with AMR Visualizer v', APP_VERSION, 
-    ', an RShiny App (Sobkowich et al., ',
+    '<p style="margin-top: 2px;">This antibiogram was generated with AMR Visualizer v', APP_VERSION, 
+', an RShiny App (Sobkowich et al., ',
     '<a href="https://github.com/AMR-Visualizer/AMRDataVisualizer" target="_blank">https://github.com/AMR-Visualizer/AMRDataVisualizer</a>, ',
     'accessed ', format(Sys.Date(), "%B %d, %Y"), ').</p>'
   )

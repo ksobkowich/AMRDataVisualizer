@@ -253,7 +253,7 @@ classicAB <- function(
 #' @return A HTML div element with the tooltip information.
 ab_tooltip <- function(value, obs, ci) {
   tags$div(
-    title = paste0("Median n = ", obs, ", CI = ", ci),
+    title = paste0("n = ", obs, ", CI = ", ci),
     value
   ) %>%
     as.character()
