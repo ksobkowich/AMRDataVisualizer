@@ -55,6 +55,18 @@ The application is developed in R, utilizing Shiny for the user interface, `dply
 
 In adherence to data privacy considerations, all processing occurs locally within the user's environment, and no uploaded data are stored externally. Users have the option to download the cleaned dataset for external use or future re-upload, in which case the data processing steps are skipped to improve efficiency.
 
+# Software Design
+
+The AMR Visualizer was designed to balance flexibility, accessibility, and consistency for users working with heterogeneous antimicrobial susceptibility testing datasets.  We prioritized flexible data ingestion that accepts different file structures, imperfect naming conventions, and partially standardized metadata, then transforms the data into a common internal format for analysis. This increases implementation complexity, but reduces preprocessing demands on users and improves applicability across institutions.
+
+The application is built in R Shiny using separate components for data import, cleaning, transformation, and visualization. This structure improves maintainability and makes it easier to extend the software over time. Reactive programming allows users to filter and explore data interactively without rerunning the full pipeline. Existing packages such as `AMR` provide accepted methods for breakpoint interpretation, taxonomy cleaning, and antimicrobial lookups, and these capabilities are intentionally reused rather than recreated. However, those tools are primarily designed for code-based workflows. The purpose of developing new software was therefore not to replace existing methods, but to provide an accessible graphical interface that combines preprocessing, analysis, and reporting in a single workflow for users who do not work in programming environments.
+
+# Research Impact Statement
+
+The AMR Visualizer was developed to address a common gap in antimicrobial resistance analytics. While several strong open-source tools exist, many professionals working with diagnostic laboratory data do not have the programming experience needed to use them efficiently. By lowering that barrier, the application makes antimicrobial susceptibility testing data more accessible for surveillance, empiric treatment guidance, and hypothesis generation. This software has been tested in academic and collaborative veterinary AMR settings to summarize historical susceptibility data, generate customized antibiograms, and examine temporal and geographic resistance patterns.
+
+Its broader impact is supported by features that encourage adoption, transparency, and reproducibility. The application is open source, allowing users to inspect, adapt, and extend the code for their own needs. Public source code, sample datasets, and a demonstration video are available to support implementation. Outputs can be exported with applied filters and settings recorded, improving traceability and reproducibility of exploratory analyses. The software was also designed to remain useful as standards and user needs evolve, with scope for additional methods, guidelines, and reporting workflows over time. Together, these features position the AMR Visualizer as a practical and community-ready tool for expanding access to AMR analytics.
+
 # Usage
 
 This tool is intended for professionals with access to clinical microbiology data and a working understanding of antimicrobial resistance. While no background in epidemiology, programming, or statistics is required, users should be aware of the limitations of diagnostic laboratory data and avoid overgeneralizing its applicability.  
@@ -109,6 +121,10 @@ The application is accessible through the following channels:
     A walkthrough is available on [YouTube](https://www.youtube.com/watch?v=QYW0U3wZqoQ&ab_channel=KurtisSobkowich).
 
 The application comes pre-loaded with sample data to help users explore its features and functionality.
+
+# AI Usage Disclosure
+
+Generative AI tools were used in a limited support capacity during software development and manuscript preparation. AI assistance was used primarily for brainstorming, code debugging support, wording refinement, and editorial feedback. All scientific content, software design decisions, analytical logic, validation, and final manuscript text were reviewed and approved by the authors. No AI system was used to generate results, perform analyses, or make scientific conclusions.
 
 # References
 
