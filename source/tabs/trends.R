@@ -190,11 +190,21 @@ server <- function(id, reactiveData) {
         filter(Count >= 30, is.finite(propS), !is.na(Date))
 
       if (input$tsType == "Rolling Mean") {
+
+        req(input$rmWindow)
+        k <- as.integer(input$rmWindow)
+
         tsDataRM <- tsData %>%
           group_by(Antimicrobial) %>%
           arrange(Date) %>%
-          filter(is.finite(propS)) %>%
-          mutate(ma_propS = rollmean(propS, k = input$rmWindow, fill = NA, align = "right"))
+          mutate(
+            ma_propS = if (n() >= k) {
+              zoo::rollmean(propS, k = k, fill = NA, align = "right")
+            } else {
+              NA_real_
+            }
+          )
+
 
         numColors <- length(unique(tsDataRM$Antimicrobial))
 
@@ -236,20 +246,41 @@ server <- function(id, reactiveData) {
         #' @param f [Description]
         #'
         #' @return [Description]
-        apply_lowess <- function(df, x, y, f = input$lowessSpan) {
-          lowess_result <- stats::lowess(df[[x]], df[[y]], f = f)
-          df$low_propS <- lowess_result$y
-          return(df)
+        apply_lowess <- function(df, x, y, f) {
+
+          if (is.null(f) || !is.finite(f) || f <= 0) {
+            df$low_propS <- NA_real_
+            return(df)
+          }
+
+          df <- df %>%
+            filter(is.finite(.data[[y]]), !is.na(.data[[x]]))
+
+          if (nrow(df) < 3) {
+            df$low_propS <- NA_real_
+            return(df)
+          }
+
+          lw <- stats::lowess(df[[x]], df[[y]], f = f)
+          df$low_propS <- lw$y
+          df
         }
 
         tsData_clean <- tsData %>%
           filter(is.finite(propS), !is.na(Date))
 
-        tsDataLowess <- tsData_clean %>%
+        req(input$lowessSpan)
+
+        tsDataLowess <- tsData %>%
           group_by(Antimicrobial) %>%
           nest() %>%
-          mutate(data = map(data, ~ apply_lowess(.x, "Date", "propS"))) %>%
-          unnest(cols = c(data)) %>%
+          mutate(
+            data = map(
+              data,
+              ~ apply_lowess(.x, "Date", "propS", input$lowessSpan)
+            )
+          ) %>%
+          unnest(cols = data) %>%
           ungroup()
 
         numColors <- length(unique(tsDataLowess$Antimicrobial))
