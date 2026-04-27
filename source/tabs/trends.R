@@ -187,7 +187,7 @@ server <- function(id, reactiveData) {
         group_by(Antimicrobial) %>%
         group_modify(~ roll_forward(.)) %>%
         mutate(propS = ifelse(Count > 0, (Susceptible / Count) * 100, NA_real_)) %>%
-        filter(Count >= 30)
+        filter(Count >= 30, is.finite(propS), !is.na(Date))
 
       if (input$tsType == "Rolling Mean") {
         tsDataRM <- tsData %>%
