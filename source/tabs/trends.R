@@ -186,13 +186,14 @@ server <- function(id, reactiveData) {
       tsData <- tsData %>%
         group_by(Antimicrobial) %>%
         group_modify(~ roll_forward(.)) %>%
-        mutate(propS = (Susceptible / Count) * 100) %>% # Convert to percentage
+        mutate(propS = ifelse(Count > 0, (Susceptible / Count) * 100, NA_real_)) %>%
         filter(Count >= 30)
 
       if (input$tsType == "Rolling Mean") {
         tsDataRM <- tsData %>%
           group_by(Antimicrobial) %>%
           arrange(Date) %>%
+          filter(is.finite(propS)) %>%
           mutate(ma_propS = rollmean(propS, k = input$rmWindow, fill = NA, align = "right"))
 
         numColors <- length(unique(tsDataRM$Antimicrobial))
@@ -242,7 +243,7 @@ server <- function(id, reactiveData) {
         }
 
         tsData_clean <- tsData %>%
-          drop_na(Date, propS)
+          filter(is.finite(propS), !is.na(Date))
 
         tsDataLowess <- tsData_clean %>%
           group_by(Antimicrobial) %>%
