@@ -115,70 +115,22 @@ source("source/utils/column_detection.R")
 
 source("source/utils/version.R")
 #add version info to docs
-# Debug: Check if variables exist
-cat("=== DEBUG INFO ===\n")
-cat("APP_VERSION exists:", exists("APP_VERSION"), "\n")
-cat("APP_RELEASE_DATE exists:", exists("APP_RELEASE_DATE"), "\n")
-
-if (exists("APP_VERSION")) {
-  cat("APP_VERSION value:", APP_VERSION, "\n")
-} else {
-  cat("APP_VERSION is missing!\n")
-}
-
-if (exists("APP_RELEASE_DATE")) {
-  cat("APP_RELEASE_DATE value:", APP_RELEASE_DATE, "\n")
-} else {
-  cat("APP_RELEASE_DATE is missing!\n")
-}
-
-# Check if file exists
-cat("about.md file exists:", file.exists("Documentation/about.md"), "\n")
 
 # Preprocess about.md file with version info
-if (file.exists("Documentation/about.md")) {
-  cat("Processing about.md...\n")
-  
-  about_text <- readLines("Documentation/about.md", warn = FALSE)
-  about_text <- paste(about_text, collapse = "\n")
+about_text <- readLines("Documentation/about.md", warn = FALSE)
+about_text <- paste(about_text, collapse = "\n")
 
-  # Add this after reading the file:
-# Debug: Check if placeholders exist in the text
-cat("Text contains {{VERSION}}:", grepl("{{VERSION}}", about_text, fixed = TRUE), "\n")
-cat("Text contains {{RELEASE_DATE}}:", grepl("{{RELEASE_DATE}}", about_text, fixed = TRUE), "\n")
-cat("Text contains {{ACCESS_DATE}}:", grepl("{{ACCESS_DATE}}", about_text, fixed = TRUE), "\n")
-
-# Show the citation section specifically
-citation_section <- regmatches(about_text, regexpr("Sobkowich.*?Accessed.*", about_text))
-if(length(citation_section) > 0) {
-  cat("Citation section found:", citation_section, "\n")
-} else {
-  cat("Citation section NOT found\n")
-}
+# Replace placeholders with debug info
+version_val <- if(exists("APP_VERSION")) APP_VERSION else "VERSION_MISSING"
+release_val <- if(exists("APP_RELEASE_DATE")) APP_RELEASE_DATE else "RELEASE_DATE_MISSING"
+access_val <- format(Sys.Date(), "%B %d, %Y")
   
-  # Show original text (first 200 chars)
-  cat("Original text snippet:", substr(about_text, 1, 200), "...\n")
+about_text <- gsub("{{VERSION}}", version_val, about_text, fixed = TRUE)
+about_text <- gsub("{{RELEASE_DATE}}", release_val, about_text, fixed = TRUE)
+about_text <- gsub("{{ACCESS_DATE}}", access_val, about_text, fixed = TRUE)
   
-  # Replace placeholders with debug info
-  version_val <- if(exists("APP_VERSION")) APP_VERSION else "VERSION_MISSING"
-  release_val <- if(exists("APP_RELEASE_DATE")) APP_RELEASE_DATE else "RELEASE_DATE_MISSING"
-  access_val <- format(Sys.Date(), "%B %d, %Y")
-  
-  about_text <- gsub("{{VERSION}}", version_val, about_text, fixed = TRUE)
-  about_text <- gsub("{{RELEASE_DATE}}", release_val, about_text, fixed = TRUE)
-  about_text <- gsub("{{ACCESS_DATE}}", access_val, about_text, fixed = TRUE)
-  
-  # Show processed text (first 200 chars)
-  cat("Processed text snippet:", substr(about_text, 1, 200), "...\n")
-  
-  # Write processed version
-  writeLines(about_text, "Documentation/about_processed.md")
-  cat("Written to about_processed.md\n")
-} else {
-  cat("about.md file not found!\n")
-}
-
-cat("=== END DEBUG ===\n")
+# Write processed version
+writeLines(about_text, "Documentation/about_processed.md")
 
 
 # Tab-specific utils

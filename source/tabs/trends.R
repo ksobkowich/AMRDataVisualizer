@@ -24,12 +24,13 @@ ui <- function(id) {
         bsCollapse(
           id = "collapsePanel",
           open = NULL,
-          multiple = T,
+          multiple = TRUE,
           bsCollapsePanel(
             HTML(
               "Controls <span class='glyphicon glyphicon-chevron-down' data-toggle='collapse-icon' 
-            style='float: right; color: #aaa;'></span>"
+              style='float: right; color: #aaa;'></span>"
             ),
+
             radioGroupButtons(
               ns("tsType"),
               "Smoothing",
@@ -38,7 +39,32 @@ ui <- function(id) {
               selected = "None",
               justified = TRUE
             ),
-            uiOutput(ns("additionalControls"))
+
+            # Rolling Mean slider (always exists, conditionally shown)
+            conditionalPanel(
+              condition = sprintf("input['%s'] == 'Rolling Mean'", ns("tsType")),
+              sliderInput(
+                ns("rmWindow"),
+                "Window",
+                min = 2,
+                max = 12,
+                value = 2,
+                step = 1
+              )
+            ),
+
+            # LOWESS slider (always exists, conditionally shown)
+            conditionalPanel(
+              condition = sprintf("input['%s'] == 'LOWESS'", ns("tsType")),
+              sliderInput(
+                ns("lowessSpan"),
+                "Span",
+                min = 0.1,
+                max = 1,
+                value = 0.1,
+                step = 0.1
+              )
+            )
           )
         )
       )
@@ -136,15 +162,7 @@ server <- function(id, reactiveData) {
       )
     })
 
-    output$additionalControls <- renderUI({
-      if (input$tsType == "Rolling Mean") {
-        sliderInput(ns("rmWindow"), "Window", min = 2, max = 12, value = 2, step = 1)
-      } else if (input$tsType == "LOWESS") {
-        sliderInput(ns("lowessSpan"), "Span", min = 0.1, max = 1, value = 0.1, step = .1)
-      } else {
-        NULL
-      }
-    })
+
 
     output$plot <- renderPlotly({
       tsData <- plotData() %>%
@@ -191,7 +209,7 @@ server <- function(id, reactiveData) {
 
       if (input$tsType == "Rolling Mean") {
 
-        req(input$rmWindow)
+        
         k <- as.integer(input$rmWindow)
 
         tsDataRM <- tsData %>%
@@ -269,7 +287,7 @@ server <- function(id, reactiveData) {
         tsData_clean <- tsData %>%
           filter(is.finite(propS), !is.na(Date))
 
-        req(input$lowessSpan)
+        
 
         tsDataLowess <- tsData %>%
           group_by(Antimicrobial) %>%
