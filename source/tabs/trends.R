@@ -138,9 +138,9 @@ server <- function(id, reactiveData) {
 
     output$additionalControls <- renderUI({
       if (input$tsType == "Rolling Mean") {
-        sliderInput(ns("rmWindow"), "Window", min = 2, max = 12, value = 6, step = 1)
+        sliderInput(ns("rmWindow"), "Window", min = 2, max = 12, value = 2, step = 1)
       } else if (input$tsType == "LOWESS") {
-        sliderInput(ns("lowessSpan"), "Span", min = 0.1, max = 1, value = 0.3, step = .1)
+        sliderInput(ns("lowessSpan"), "Span", min = 0.1, max = 1, value = 0.1, step = .1)
       } else {
         NULL
       }
