@@ -6,5 +6,5 @@
 # PATCH--> Bug fixes, typos, small internal changes
 
 
-APP_VERSION <- "2.0.0"
-APP_RELEASE_DATE <- "04/15/2026"
+APP_VERSION <- "2.0.1"
+APP_RELEASE_DATE <- "04/29/2026"
