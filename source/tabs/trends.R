@@ -31,6 +31,17 @@ ui <- function(id) {
               style='float: right; color: #aaa;'></span>"
             ),
 
+
+              # Metric toggle
+              radioGroupButtons(
+                ns("metric"),
+                "Metric",
+                choices = c("% Susceptible", "% Organism Prevalence"),
+                direction = "vertical",
+                selected = "% Susceptible",
+                justified = TRUE
+              ),
+
             radioGroupButtons(
               ns("tsType"),
               "Smoothing",
@@ -163,57 +174,118 @@ server <- function(id, reactiveData) {
     })
 
 
-
     output$plot <- renderPlotly({
-      tsData <- plotData() %>%
-        select(Date, Antimicrobial, Interpretation) %>%
-        mutate(Interpretation = ifelse((!is.na(Interpretation) & Interpretation == "S"), 1, 0)) %>%
-        mutate(Date = as.Date(Date)) %>%
-        group_by(Date, Antimicrobial) %>%
-        summarize(Susceptible = sum(Interpretation), Count = n(), .groups = "drop") %>%
-        arrange(Antimicrobial, Date)
-
+      
+      # ----------------------------------------------------------------------------
+      # Build tsData based on selected metric
+      # ----------------------------------------------------------------------------
+      if (input$metric == "% Susceptible") {
+        
+        groupLabel <- "Antimicrobial"
+        yLabel <- "% Susceptible"
+        hoverNumLabel <- "% Susceptible"
+        countLabel <- "Isolates tested"
+        
+        tsData <- plotData() %>%
+          select(Date, Antimicrobial, Interpretation) %>%
+          mutate(Interpretation = ifelse(
+            (!is.na(Interpretation) & Interpretation == "S"), 1, 0
+          )) %>%
+          mutate(Date = as.Date(Date)) %>%
+          group_by(Date, Antimicrobial) %>%
+          summarize(Numerator = sum(Interpretation), Count = n(), .groups = "drop") %>%
+          rename(Group = Antimicrobial) %>%
+          arrange(Group, Date)
+        
+      } else {
+        # ----- % Organism Prevalence -----
+        groupLabel <- "Microorganism"
+        yLabel <- "% Organism Prevalence"
+        hoverNumLabel <- "% Prevalence"
+        countLabel <- "Total isolates"
+        
+        # Deduplicate: one row per isolate (so each isolate is counted once)
+        isolates <- plotData() %>%
+          select(ID, Date, Microorganism) %>%
+          distinct() %>%
+          mutate(Date = as.Date(Date))
+        
+        # Per date: total isolates (denominator)
+        totalsPerDate <- isolates %>%
+          group_by(Date) %>%
+          summarize(TotalOrgs = n(), .groups = "drop")
+        
+        # Per date + organism: numerator
+        tsData <- isolates %>%
+          group_by(Date, Microorganism) %>%
+          summarize(OrgCount = n(), .groups = "drop") %>%
+          left_join(totalsPerDate, by = "Date") %>%
+          transmute(
+            Date = Date,
+            Group = Microorganism,
+            Numerator = OrgCount,
+            Count = TotalOrgs
+          ) %>%
+          arrange(Group, Date)
+      }
+      
       tsData$Date <- as.Date(tsData$Date)
-
-      #' TODO: Documentation
-      #' [Summary]
+      
+      # ----------------------------------------------------------------------------
+      # roll_forward: bin consecutive dates until Count >= 30
+      # ----------------------------------------------------------------------------
+      #' Bins consecutive time points so each bin has at least 30 in the denominator.
       #'
-      #' @param df [Description]
-      #' @return [Description]
+      #' @param df A data frame with columns Date, Group, Numerator, Count.
+      #' @return A binned data frame with the same columns.
       roll_forward <- function(df) {
         new_df <- df[1, ]
         new_df$Count <- 0
-        new_df$Susceptible <- 0
-
+        new_df$Numerator <- 0
+        
         for (i in 1:nrow(df)) {
-          new_df$Susceptible[nrow(new_df)] <- new_df$Susceptible[nrow(new_df)] + df$Susceptible[i]
+          new_df$Numerator[nrow(new_df)] <- new_df$Numerator[nrow(new_df)] + df$Numerator[i]
           new_df$Count[nrow(new_df)] <- new_df$Count[nrow(new_df)] + df$Count[i]
           new_df$Date[nrow(new_df)] <- df$Date[i]
-
+          
           if (new_df$Count[nrow(new_df)] >= 30) {
             if (i < nrow(df)) {
               new_df <- rbind(new_df, df[i + 1, ])
               new_df$Count[nrow(new_df)] <- 0
-              new_df$Susceptible[nrow(new_df)] <- 0
+              new_df$Numerator[nrow(new_df)] <- 0
             }
           }
         }
         return(new_df)
       }
-
+      
       tsData <- tsData %>%
-        group_by(Antimicrobial) %>%
+        group_by(Group) %>%
         group_modify(~ roll_forward(.)) %>%
-        mutate(propS = ifelse(Count > 0, (Susceptible / Count) * 100, NA_real_)) %>%
+        mutate(propS = ifelse(Count > 0, (Numerator / Count) * 100, NA_real_)) %>%
         filter(Count >= 30, is.finite(propS), !is.na(Date))
-
+      
+      # ----------------------------------------------------------------------------
+      # Helper: build hover text
+      # ----------------------------------------------------------------------------
+      make_hover <- function(group_vals, count_vals, y_vals, date_vals) {
+        paste0(
+          groupLabel, ": ", group_vals,
+          "<br>", countLabel, ": ", count_vals,
+          "<br>", hoverNumLabel, ": ", round(y_vals, 3),
+          "<br>Date: ", date_vals
+        )
+      }
+      
+      # ----------------------------------------------------------------------------
+      # Plot — branch on smoothing type
+      # ----------------------------------------------------------------------------
       if (input$tsType == "Rolling Mean") {
-
         
         k <- as.integer(input$rmWindow)
-
+        
         tsDataRM <- tsData %>%
-          group_by(Antimicrobial) %>%
+          group_by(Group) %>%
           arrange(Date) %>%
           mutate(
             ma_propS = if (n() >= k) {
@@ -222,75 +294,60 @@ server <- function(id, reactiveData) {
               NA_real_
             }
           )
-
-
-        numColors <- length(unique(tsDataRM$Antimicrobial))
-
-        colorPalette = get_gg_color_hue(numColors)
-
+        
+        numColors <- length(unique(tsDataRM$Group))
+        colorPalette <- get_gg_color_hue(numColors)
+        
         plot_ly(
           tsDataRM,
           x = ~Date,
           y = ~ma_propS,
           type = 'scatter',
           mode = 'lines+markers',
-          color = ~Antimicrobial,
+          color = ~Group,
           colors = colorPalette,
-          text = ~ paste(
-            "Antimicrobial:",
-            Antimicrobial,
-            "<br>Isolates tested:",
-            Count,
-            "<br>% Susceptible:",
-            round(ma_propS, 3),
-            "<br>Date:",
-            Date
-          ),
+          text = ~make_hover(Group, Count, ma_propS, Date),
           hoverinfo = "text"
         ) %>%
           layout(
             title = "",
+            legend = list(title = list(text = groupLabel)),
             xaxis = list(title = "Date"),
-            yaxis = list(title = "% Susceptible", range = c(0, 100))
-          ) %>% # Adjust range to 0-100%
+            yaxis = list(title = yLabel, range = c(0, 100))
+          ) %>%
           config(displayModeBar = FALSE)
+        
       } else if (input$tsType == "LOWESS") {
-        #' TODO: Documentation
-        #' [Summary]
+        
+        #' Apply LOWESS smoothing to a data frame.
         #'
-        #' @param df [Description]
-        #' @param x [Description]
-        #' @param y [Description]
-        #' @param f [Description]
-        #'
-        #' @return [Description]
+        #' @param df Data frame.
+        #' @param x  Name of the x column.
+        #' @param y  Name of the y column.
+        #' @param f  LOWESS span.
+        #' @return   Data frame with a new low_propS column.
         apply_lowess <- function(df, x, y, f) {
-
+          
           if (is.null(f) || !is.finite(f) || f <= 0) {
             df$low_propS <- NA_real_
             return(df)
           }
-
+          
           df <- df %>%
             filter(is.finite(.data[[y]]), !is.na(.data[[x]]))
-
+          
           if (nrow(df) < 3) {
             df$low_propS <- NA_real_
             return(df)
           }
-
+          
           lw <- stats::lowess(df[[x]], df[[y]], f = f)
           df$low_propS <- lw$y
           df
         }
-
-        tsData_clean <- tsData %>%
-          filter(is.finite(propS), !is.na(Date))
-
         
-
         tsDataLowess <- tsData %>%
-          group_by(Antimicrobial) %>%
+          group_by(Group) %>%
           nest() %>%
           mutate(
             data = map(
@@ -300,36 +357,27 @@ server <- function(id, reactiveData) {
           ) %>%
           unnest(cols = data) %>%
           ungroup()
-
-        numColors <- length(unique(tsDataLowess$Antimicrobial))
-
-        colorPalette = get_gg_color_hue(numColors)
-
+        
+        numColors <- length(unique(tsDataLowess$Group))
+        colorPalette <- get_gg_color_hue(numColors)
+        
         plot_ly(
           tsDataLowess,
           x = ~Date,
           y = ~low_propS,
           type = 'scatter',
           mode = 'lines+markers',
-          color = ~Antimicrobial,
+          color = ~Group,
           colors = colorPalette,
-          text = ~ paste(
-            "Antimicrobial:",
-            Antimicrobial,
-            "<br>Isolates tested:",
-            Count,
-            "<br>% Susceptible:",
-            round(low_propS, 3),
-            "<br>Date:",
-            Date
-          ),
+          text = ~make_hover(Group, Count, low_propS, Date),
           hoverinfo = "text"
         ) %>%
           layout(
             title = "",
+            legend = list(title = list(text = groupLabel)),
             xaxis = list(title = "Date"),
-            yaxis = list(title = "% Susceptible", range = c(0, 100))
-          ) %>% # Adjust range to 0-100%
+            yaxis = list(title = yLabel, range = c(0, 100))
+          ) %>%
           config(
             displayModeBar = TRUE,
             modeBarButtonsToRemove = c(
@@ -358,37 +406,29 @@ server <- function(id, reactiveData) {
               filename = paste(Sys.Date(), "AMRVisualizerTrends", sep = "_")
             )
           )
+        
       } else {
-        numColors <- length(unique(tsData$Antimicrobial))
-
-        colorPalette = get_gg_color_hue(numColors)
-
+        # ----- No smoothing -----
+        numColors <- length(unique(tsData$Group))
+        colorPalette <- get_gg_color_hue(numColors)
+        
         plot_ly(
           tsData,
           x = ~Date,
           y = ~propS,
           type = 'scatter',
           mode = 'lines+markers',
-          color = ~Antimicrobial,
+          color = ~Group,
           colors = colorPalette,
-          text = ~ paste(
-            "Antimicrobial:",
-            Antimicrobial,
-            "<br>Isolates tested:",
-            Count,
-            "<br>% Susceptible:",
-            round(propS, 3),
-            "<br>Date:",
-            Date
-          ),
+          text = ~make_hover(Group, Count, propS, Date),
           hoverinfo = "text"
         ) %>%
           layout(
             title = "",
-            legend = list(orientation = 'h'),
+            legend = list(orientation = 'h', title = list(text = groupLabel)),
             xaxis = list(title = "Date"),
-            yaxis = list(title = "% Susceptible", range = c(0, 100))
-          ) %>% # Adjust range to 0-100%
+            yaxis = list(title = yLabel, range = c(0, 100))
+          ) %>%
           config(
             displaylogo = FALSE,
             modeBarButtonsToRemove = list(
