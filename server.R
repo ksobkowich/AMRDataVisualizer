@@ -34,7 +34,7 @@ server <- function(input, output, session) {
     bp_log = importResults$bp_log
   )
   map_tab$server("mapModule", reactiveData = dataWithCustomBreakpoints)
-  trends_tab$server("tsModule", reactiveData = dataWithCustomBreakpoints)
+  trends_tab$server("tsModule", reactiveData = dataWithCustomBreakpoints, allCulturesData = cleanAllCultures)
   # MicroGuide
   mdr_tab$server("mdrModule", reactiveData = dataWithCustomBreakpoints)
   explore_tab$server("exModule", reactiveData = dataWithCustomBreakpoints)
@@ -45,6 +45,7 @@ server <- function(input, output, session) {
 
   # Variables from import tab
   clean <- importResults$data
+  cleanAllCultures <- importResults$dataAllCultures
   processedGuideline <- importResults$guideline
 
   # Variables from MIC tab
