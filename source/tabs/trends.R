@@ -42,6 +42,19 @@ ui <- function(id) {
                 justified = TRUE
               ),
 
+              # Data source toggle (only shown for prevalence)
+              conditionalPanel(
+                condition = sprintf("input['%s'] == '%% Organism Prevalence'", ns("metric")),
+                radioGroupButtons(
+                  ns("dataSource"),
+                  "Data Source",
+                  choices = c("AST isolates only" = "ast", "All cultures" = "all"),
+                  direction = "vertical",
+                  selected = "ast",
+                  justified = TRUE
+                )
+              ),
+
             radioGroupButtons(
               ns("tsType"),
               "Smoothing",
@@ -107,9 +120,38 @@ ui <- function(id) {
 #' @param id            The ID of the module.
 #' @param reactiveData  A reactive that returns the cleaned data.
 #' @return              None.
-server <- function(id, reactiveData) {
+server <- function(id, reactiveData, allCulturesData = reactive(NULL)) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
+
+    # ------------------------------------------------------------------------------
+    # Module variables
+    # ------------------------------------------------------------------------------
+    # ------------------------------------------------------------------------------
+    # Reactives
+    # ------------------------------------------------------------------------------
+
+    # Active data source: switches between AST-only and all-cultures data based
+    # on the user-selected metric and data source toggle. This reactive feeds
+    # the filter panel, so when the user switches data sources, the filter
+    # dropdowns update to reflect the new dataset's contents.
+    activeData <- reactive({
+      use_all_cultures <- !is.null(input$metric) &&
+        input$metric == "% Organism Prevalence" &&
+        !is.null(input$dataSource) &&
+        input$dataSource == "all"
+
+      if (use_all_cultures) {
+        d <- allCulturesData()
+        # Fall back to AST data if all-cultures data isn't available
+        # (user didn't opt in during import)
+        if (is.null(d) || nrow(d) == 0) {
+          return(reactiveData())
+        }
+        return(d)
+      }
+      reactiveData()
+    })
 
     # ------------------------------------------------------------------------------
     # Sub-modules
@@ -117,16 +159,13 @@ server <- function(id, reactiveData) {
 
     filters <- filter_panel$server(
       "filters",
-      reactiveData,
+      activeData,  # NEW: switches between AST-only and all-cultures data
       default_filters = c("Antimicrobial", "Microorganism", "Species", "Source", "Date"),
       auto_populate = list(Antimicrobial = TRUE, Microorganism = TRUE)
     )
 
     # ------------------------------------------------------------------------------
-    # Module variables
-    # ------------------------------------------------------------------------------
-    # ------------------------------------------------------------------------------
-    # Reactives
+    # More reactives (downstream of filter panel)
     # ------------------------------------------------------------------------------
 
     plotData <- reactive({
@@ -145,6 +184,7 @@ server <- function(id, reactiveData) {
       req(plotData())
       if (!is.null(plotData()) && nrow(plotData()) > 0) {
         tagList(
+          uiOutput(ns("idWarning")), # warning shown when ID column is missing in prevalence mode
           wellPanel(
             style = "overflow-x: scroll; overflow-y: scroll; max-height: 80vh;",
             div(style = "min-height: 750px", plotlyOutput(ns("plot"), height = "71vh")),
@@ -173,6 +213,25 @@ server <- function(id, reactiveData) {
       )
     })
 
+    # Warn user when ID column is missing during prevalence analysis.
+    # Without an ID column, isolates tested against multiple antimicrobials
+    # will be double-counted, inflating prevalence estimates.
+    output$idWarning <- renderUI({
+      req(input$metric == "% Organism Prevalence")
+      req(plotData())
+      d <- plotData()
+      if (!"ID" %in% names(d) || all(is.na(d$ID))) {
+        div(
+          style = "background-color: #fff3cd; border: 1px solid #ffeeba; color: #856404; 
+                   padding: 10px; border-radius: 4px; margin-bottom: 10px;",
+          icon("exclamation-triangle"),
+          strong(" Warning:"),
+          " No 'ID' column is mapped in your data. Without unique isolate IDs, isolates tested 
+          against multiple antimicrobials will be counted multiple times, which will inflate 
+          prevalence estimates. To fix this, return to the 'Import' tab and map an ID column."
+        )
+      }
+    })
 
     output$plot <- renderPlotly({
       

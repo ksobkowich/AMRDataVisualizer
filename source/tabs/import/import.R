@@ -45,6 +45,7 @@ server <- function(id) {
     upload <- reactiveValues(content = NULL, file = NULL, isWideFormat = FALSE)
     formattedData <- reactiveVal(NULL)
     cleanedData <- reactiveVal(NULL)
+    cleanedDataAllCultures <- reactiveVal(NULL)
     verifiedData <- reactiveVal(NULL)
     wideData <- reactiveVal(FALSE)
     reactiveData <- reactiveVal(NULL)
@@ -101,6 +102,24 @@ server <- function(id) {
             !is.na(Sign) | !is.na(Value)
           )
       }
+      filteredData$InternalID <- seq_len(nrow(filteredData))
+
+      return(filteredData)
+    })
+
+
+    # All-cultures version of available data.
+    # Only requires Microorganism to be non-NA, so isolates without AST data are retained.
+    # Used for organism prevalence analysis in the Trends tab.
+    availableDataAllCultures <- reactive({
+      data <- formattedData()
+      if (is.null(data)) {
+        return(NULL)
+      }
+
+      filteredData <- data %>%
+        filter(!is.na(Microorganism))
+
       filteredData$InternalID <- seq_len(nrow(filteredData))
 
       return(filteredData)
@@ -288,6 +307,25 @@ server <- function(id) {
                   class = "dataPreview"
                 ),
                 class = "dataPreviewWell"
+              ),
+
+              # NEW: Toggle for retaining all cultures
+              wellPanel(
+                radioGroupButtons(
+                  ns("retainAllCultures"),
+                  label = tagList(
+                    "Retain all cultures for organism prevalence analysis?",
+                    tags$br(),
+                    tags$small(
+                      style = "color: #888; font-weight: normal;",
+                      "If 'Yes', a second copy of your data will be processed that includes isolates without susceptibility test results. This enables prevalence analysis on all cultures in the Trends tab, but increases processing time."
+                    )
+                  ),
+                  choices = c("No", "Yes"),
+                  selected = "No",
+                  justified = TRUE
+                ),
+                class = "contentWell"
               ),
 
               actionButton(ns("processData"), "Process Data", class = "processButton"),
@@ -790,6 +828,7 @@ server <- function(id) {
       updateSelectInput(session, "dataSelect", selected = "Select a dataset")
       formattedData(NULL)
       cleanedData(NULL)
+      cleanedDataAllCultures(NULL)
       displayCleanedData(FALSE)
       verifiedData(FALSE)
     })
@@ -869,6 +908,20 @@ server <- function(id) {
       bp_log(results$bp_log)
       uti_log(results$uti_log)
       cleanedData(results$cleaned_data)
+
+      # If the user opted to retain all cultures, run cleaning on the all-cultures data too.
+      if (!is.null(input$retainAllCultures) && input$retainAllCultures == "Yes") {
+        allCulturesResults <- dataCleaner(
+          availableDataAllCultures(),
+          additionalCols = selections$additionalCols,
+          breakpoint = selections$selectedBreakpoint
+        )
+        cleanedDataAllCultures(allCulturesResults$cleaned_data)
+      } else {
+        cleanedDataAllCultures(NULL)
+      }
+
+
       displayCleanedData(TRUE)
       removeModal()
 
@@ -1283,6 +1336,7 @@ server <- function(id) {
     return(
       list(
         data = cleanedData,
+        dataAllCultures = cleanedDataAllCultures, # Return cleaned data for all cultures
         guideline = reactive({
           selections$selectedBreakpoint
         }),

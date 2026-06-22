@@ -92,9 +92,9 @@ These collective contributions were essential to the development of the AMR Visu
 A peer-reviewed publication describing the AMR Visualizer is forthcoming. Until then, users are encouraged to cite the software directly:
 
 > Sobkowich, K., Cobo Angel, C. G., Glass, J. C., Mosaddegh, A., Muellner, U., Schlaadt, P., Snellgrove, N., Anil, G., Beauvais, W. A., Bernardo, T., Bollig, E. R., Boyd, M. V., Cole, S., Deckert, A., Dietrich, J., Fridlund, A. L., Frye, A. H., Granick, J. L., Greiner Safi, A., Guarino, C. MB., Guptill-Yoran, C., Marino, K. N., Okumura, M., Penna, A., Poljak, Z., Szlosek, D., Vinci Roberto, G., Weese J. S., Cazer, C. L.  
-> **AMR Visualizer v2.0.1** *(04/29/2026)*  
+> **AMR Visualizer v2.0.2** *(06/16/2026)*  
 > GitHub repository: https://github.com/AMR-Visualizer/AMRDataVisualizer  
-> Accessed: *June 16, 2026*
+> Accessed: *June 22, 2026*
 
 ---
 
