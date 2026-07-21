@@ -24,13 +24,13 @@ server <- function(id) {
     changeLogDataMo <- change_log$server(
       "moChangeLog",
       changeLogData = mo_change_log,
-      cleanedData = cleanedData,
+      cleanedData = changeLogSource,
       availableData = availableData
     )
     changeLogDataAb <- change_log$server(
       "abChangeLog",
       changeLogData = ab_change_log,
-      cleanedData = cleanedData,
+      cleanedData = changeLogSource,
       availableData = availableData,
       type = "antimicrobial"
     )
@@ -46,6 +46,19 @@ server <- function(id) {
     formattedData <- reactiveVal(NULL)
     cleanedData <- reactiveVal(NULL)
     cleanedDataAllCultures <- reactiveVal(NULL)
+
+    # Data source for the change log module. Prefer AST-cleaned data when
+    # available, otherwise fall back to all-cultures data. This ensures the
+    # change log still works when the user's data has no AST results.
+    changeLogSource <- reactive({
+      if (!is.null(cleanedData()) && nrow(cleanedData()) > 0) {
+        cleanedData()
+      } else {
+        cleanedDataAllCultures()
+      }
+    })
+
+
     verifiedData <- reactiveVal(NULL)
     wideData <- reactiveVal(FALSE)
     reactiveData <- reactiveVal(NULL)
@@ -248,14 +261,23 @@ server <- function(id) {
             h4("Preview of Cleaned Data"),
             wellPanel(
               div(
-                h5(
-                  HTML(paste(
-                    "<font color = #44CDC4>",
-                    format(nrow(cleanedData()), big.mark = ","),
-                    "</font> rows"
-                  )),
-                  align = "left"
-                ),
+              h5(
+                HTML(paste(
+                  "<font color = #44CDC4>",
+                  format(
+                    nrow(
+                      if (!is.null(cleanedData()) && nrow(cleanedData()) > 0) {
+                        cleanedData()
+                      } else {
+                        cleanedDataAllCultures() %||% data.frame()
+                      }
+                    ),
+                    big.mark = ","
+                  ),
+                  "</font> rows"
+                )),
+                align = "left"
+              ),
                 DTOutput(ns("cleanedDataPreview"))
               ),
               class = "dataPreviewWell"
@@ -309,7 +331,7 @@ server <- function(id) {
                 class = "dataPreviewWell"
               ),
 
-              # NEW: Toggle for retaining all cultures
+              # Toggle for retaining all cultures
               wellPanel(
                 radioGroupButtons(
                   ns("retainAllCultures"),
@@ -325,6 +347,19 @@ server <- function(id) {
                   selected = "No",
                   justified = TRUE
                 ),
+
+                # Preview of all-cultures formatted data (shown only when "Yes" is selected)
+                conditionalPanel(
+                  condition = sprintf("input['%s'] == 'Yes'", ns("retainAllCultures")),
+                  hr(),
+                  h4("All-Cultures Formatted Data", style = "margin-top: 10px"),
+                  uiOutput(ns("availableAllCulturesRows")),
+                  hr(),
+                  div(
+                    tableOutput(ns("availableAllCulturesPreview")),
+                    class = "dataPreview"
+                  )
+                ),
                 class = "contentWell"
               ),
 
@@ -335,10 +370,17 @@ server <- function(id) {
       }
     })
 
-    # Preview of Cleaned Data
+    # Preview of Cleaned Data.
+    # Prefer AST-cleaned data if available, otherwise fall back to the
+    # all-cultures cleaned data (in AST-less mode).
     output$cleanedDataPreview <- renderDT({
-      req(cleanedData())
-      data <- head(cleanedData(), 100) %>%
+      previewData <- if (!is.null(cleanedData()) && nrow(cleanedData()) > 0) {
+        cleanedData()
+      } else {
+        cleanedDataAllCultures()
+      }
+      req(previewData)
+      data <- head(previewData, 100) %>%
         .remove_extra_cols()
       DT::datatable(
         data,
@@ -385,6 +427,34 @@ server <- function(id) {
       }
 
       head(availableData, 100) %>%
+        .remove_extra_cols()
+    })
+
+
+        # Row count of available all-cultures data.
+    output$availableAllCulturesRows <- renderUI({
+      req(availableDataAllCultures())
+      h5(
+        HTML(paste(
+          "<font color = #44CDC4>",
+          format(nrow(availableDataAllCultures()), big.mark = ","),
+          "</font> rows will be retained as all-cultures data"
+        )),
+        align = "left"
+      )
+    })
+
+    # Preview of available all-cultures data.
+    output$availableAllCulturesPreview <- renderTable({
+      req(availableDataAllCultures())
+      data <- availableDataAllCultures()
+
+      if ("Date" %in% names(data)) {
+        data <- data %>%
+          mutate(Date = as.character(Date))
+      }
+
+      head(data, 100) %>%
         .remove_extra_cols()
     })
 
@@ -903,13 +973,19 @@ server <- function(id) {
         additionalCols = selections$additionalCols,
         breakpoint = selections$selectedBreakpoint
       )
-      mo_change_log(results$mo_log)
-      ab_change_log(results$ab_log)
       bp_log(results$bp_log)
       uti_log(results$uti_log)
-      cleanedData(results$cleaned_data)
+
+      # Determine if AST cleaning produced usable data.
+      hasAst <- !is.null(results$cleaned_data) && nrow(results$cleaned_data) > 0
+      if (hasAst) {
+        cleanedData(results$cleaned_data)
+      } else {
+        cleanedData(NULL)
+      }
 
       # If the user opted to retain all cultures, run cleaning on the all-cultures data too.
+      allCulturesResults <- NULL
       if (!is.null(input$retainAllCultures) && input$retainAllCultures == "Yes") {
         allCulturesResults <- dataCleaner(
           availableDataAllCultures(),
@@ -921,6 +997,19 @@ server <- function(id) {
         cleanedDataAllCultures(NULL)
       }
 
+      # Populate the change logs. Prefer AST-derived logs when available;
+      # otherwise fall back to logs derived from the all-cultures cleaning
+      # (which is the only cleaning that actually happened in AST-less mode).
+      if (hasAst) {
+        mo_change_log(results$mo_log)
+        ab_change_log(results$ab_log)
+      } else if (!is.null(allCulturesResults)) {
+        mo_change_log(allCulturesResults$mo_log)
+        ab_change_log(allCulturesResults$ab_log)
+      } else {
+        mo_change_log(NULL)
+        ab_change_log(NULL)
+      }
 
       displayCleanedData(TRUE)
       removeModal()
@@ -1289,7 +1378,12 @@ server <- function(id) {
         paste0(Sys.Date(), "_CleanedAMRVisualizerData.parquet")
       },
       content = function(file) {
-        data <- cleanedData()
+        # Prefer AST-cleaned data; fall back to all-cultures if unavailable.
+        data <- if (!is.null(cleanedData()) && nrow(cleanedData()) > 0) {
+          cleanedData()
+        } else {
+          cleanedDataAllCultures()
+        }
         verified <- c("verified" = "TRUE")
         nanoparquet::write_parquet(data, metadata = verified, file)
       }

@@ -33,8 +33,8 @@ server <- function(input, output, session) {
     mic_or_sir = importResults$mic_or_sir,
     bp_log = importResults$bp_log
   )
-  map_tab$server("mapModule", reactiveData = dataWithCustomBreakpoints)
-  trends_tab$server("tsModule", reactiveData = dataWithCustomBreakpoints, allCulturesData = cleanAllCultures)
+  map_tab$server("mapModule", reactiveData = primaryData)
+  trends_tab$server("tsModule", reactiveData = primaryData, allCulturesData = cleanAllCultures)
   # MicroGuide
   mdr_tab$server("mdrModule", reactiveData = dataWithCustomBreakpoints)
   explore_tab$server("exModule", reactiveData = dataWithCustomBreakpoints)
@@ -52,6 +52,10 @@ server <- function(input, output, session) {
   dataWithCustomBreakpoints <- micData$dataWithCustomBreakpoints
   customBreakpoints <- micData$customBreakpoints
 
+
+
+
+
   # ------------------------------------------------------------------------------
   # Reactives
   # ------------------------------------------------------------------------------
@@ -64,6 +68,35 @@ server <- function(input, output, session) {
     !is.null(clean()) && nrow(clean()) > 0
   })
 
+  # Does the user have AST (susceptibility test) data?
+  # This is TRUE when the cleaned data has at least one row with antimicrobial
+  # test results. When FALSE, tabs that require AST data (MIC tables, antibiogram,
+  # MDR, etc.) should be disabled.
+  hasAstData <- reactive({
+    !is.null(clean()) && nrow(clean()) > 0
+  })
+
+  # Does the user have any usable data (AST or all-cultures)?
+  # This is TRUE when either AST data OR all-cultures data is available.
+  # Used to decide whether to show any menu items at all.
+  hasAnyData <- reactive({
+    hasAstData() ||
+      (!is.null(cleanAllCultures()) && nrow(cleanAllCultures()) > 0)
+  })
+
+  # Primary data reactive: returns AST-with-custom-breakpoints when available,
+  # otherwise falls back to the all-cultures data. This is the data source that
+  # flows into tabs that support both AST and prevalence-only workflows
+  # (Overview, Trends, and eventually Map).
+  primaryData <- reactive({
+    if (hasAstData()) {
+      dataWithCustomBreakpoints()
+    } else {
+      cleanAllCultures()
+    }
+  })
+
+
   # ------------------------------------------------------------------------------
   # Render UI
   # ------------------------------------------------------------------------------
@@ -71,8 +104,8 @@ server <- function(input, output, session) {
   # If cleaned data exist, render full sidebar menu.
   # Selectively show sidebar menu if data is present.
   output$menu <- renderUI({
-    if (isDataPresent()) {
-      # Define menu items
+    if (hasAstData()) {
+      # --- Full menu: AST data is present ---------------------------------------
       menu_items <- list(
         menuItem(
           "Overview",
@@ -103,8 +136,27 @@ server <- function(input, output, session) {
 
       sidebarMenu(id = "tabs", menu_items)
 
-      # If cleaned data do not exist, show message to user
+    } else if (hasAnyData()) {
+      # --- Reduced menu: only all-cultures data available ------------------------
+      # AST-dependent tabs (Antibiogram, MDR, Explore, MIC tables) are hidden
+      # because they can't do anything meaningful without susceptibility results.
+      # Map will be added here once prevalence support is built into it.
+      sidebarMenu(
+        id = "tabs",
+        menuItem(
+          "Overview",
+          tabName = "ovTab",
+          icon = icon("magnifying-glass-chart", class = "nav-icon")
+        ),
+        menuItem(
+          "Trends",
+          tabName = "trendsTab",
+          icon = icon("chart-line", class = "nav-icon")
+        )
+      )
+
     } else {
+      # --- No data yet -----------------------------------------------------------
       tagList(
         sidebarMenu(id = "tabs"),
         h6(
@@ -114,7 +166,6 @@ server <- function(input, output, session) {
       )
     }
   })
-
   # ------------------------------------------------------------------------------
   # Observes
   # ------------------------------------------------------------------------------
@@ -173,8 +224,8 @@ server <- function(input, output, session) {
 
   # Overview tab
   observe({
-    req(clean())
-    overview_tab$server("overviewModule", clean())
+    req(primaryData())
+    overview_tab$server("overviewModule", primaryData())
   })
 
   # ------------------------------------------------------------------------------
