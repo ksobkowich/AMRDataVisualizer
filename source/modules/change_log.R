@@ -143,7 +143,7 @@ server <- function(id, changeLogData, cleanedData, availableData, type = "microo
     #' It allow the `input$updateTableData` value to be the current table data at all times.
     observe({
       newData <- fromJSON(input$updateTableData)
-      req(!is.null(newData))
+      req(!is.null(newData), is.data.frame(newData), nrow(newData) > 0)
 
       #' At this point need to update any rows with the value "Changed by user" (in the `action`
       #' column) in the cleaned data.
@@ -163,7 +163,7 @@ server <- function(id, changeLogData, cleanedData, availableData, type = "microo
     observe({
       newData <- fromJSON(input$updateTableData)
       tableChangeLogData(newData)
-      req(!is.null(newData))
+      req(!is.null(newData), is.data.frame(newData), nrow(newData) > 0)
 
       #' At this point need to update any rows with the value "Changed by user" (in the `action`
       #' column) in the cleaned data.

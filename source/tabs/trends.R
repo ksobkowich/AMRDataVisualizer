@@ -267,23 +267,55 @@ server <- function(id, reactiveData, allCulturesData = reactive(NULL)) {
         isolates <- plotData() %>%
           select(ID, Date, Microorganism) %>%
           distinct() %>%
-          mutate(Date = as.Date(Date))
+          mutate(Date = as.Date(Date)) %>%
+          filter(!is.na(Date))
         
-        # Per date: total isolates (denominator)
+        # ------------------------------------------------------------
+        # Establish shared bins across all organisms.
+        # Walk through dates in order; accumulate total isolates until
+        # the threshold is met, then start a new bin. Every organism
+        # will use these same bin boundaries so their denominators are
+        # comparable at each time point.
+        # ------------------------------------------------------------
         totalsPerDate <- isolates %>%
           group_by(Date) %>%
-          summarize(TotalOrgs = n(), .groups = "drop")
+          summarize(TotalOrgs = n(), .groups = "drop") %>%
+          arrange(Date)
         
-        # Per date + organism: numerator
+        # Assign a bin ID to each date.
+        bin_ids <- integer(nrow(totalsPerDate))
+        current_bin <- 1L
+        running_total <- 0L
+        for (i in seq_len(nrow(totalsPerDate))) {
+          bin_ids[i] <- current_bin
+          running_total <- running_total + totalsPerDate$TotalOrgs[i]
+          if (running_total >= 30) {
+            current_bin <- current_bin + 1L
+            running_total <- 0L
+          }
+        }
+        totalsPerDate$bin_id <- bin_ids
+        
+        # Build per-bin summary: total isolates and end date.
+        binSummary <- totalsPerDate %>%
+          group_by(bin_id) %>%
+          summarize(
+            Count = sum(TotalOrgs),
+            Date = max(Date),  # Use last date in bin as the bin's label
+            .groups = "drop"
+          )
+        
+        # Attach bin ID to each isolate, then aggregate per (bin, organism).
         tsData <- isolates %>%
-          group_by(Date, Microorganism) %>%
-          summarize(OrgCount = n(), .groups = "drop") %>%
-          left_join(totalsPerDate, by = "Date") %>%
+          left_join(totalsPerDate %>% select(Date, bin_id), by = "Date") %>%
+          group_by(bin_id, Microorganism) %>%
+          summarize(Numerator = n(), .groups = "drop") %>%
+          left_join(binSummary, by = "bin_id") %>%
           transmute(
             Date = Date,
             Group = Microorganism,
-            Numerator = OrgCount,
-            Count = TotalOrgs
+            Numerator = Numerator,
+            Count = Count
           ) %>%
           arrange(Group, Date)
       }
@@ -291,39 +323,48 @@ server <- function(id, reactiveData, allCulturesData = reactive(NULL)) {
       tsData$Date <- as.Date(tsData$Date)
       
       # ----------------------------------------------------------------------------
-      # roll_forward: bin consecutive dates until Count >= 30
+      # For % Susceptibility mode, apply the per-antimicrobial rolling bin logic.
+      # (Prevalence mode already produced binned tsData above using shared bins.)
       # ----------------------------------------------------------------------------
-      #' Bins consecutive time points so each bin has at least 30 in the denominator.
-      #'
-      #' @param df A data frame with columns Date, Group, Numerator, Count.
-      #' @return A binned data frame with the same columns.
-      roll_forward <- function(df) {
-        new_df <- df[1, ]
-        new_df$Count <- 0
-        new_df$Numerator <- 0
+      if (input$metric == "% Susceptible") {
         
-        for (i in 1:nrow(df)) {
-          new_df$Numerator[nrow(new_df)] <- new_df$Numerator[nrow(new_df)] + df$Numerator[i]
-          new_df$Count[nrow(new_df)] <- new_df$Count[nrow(new_df)] + df$Count[i]
-          new_df$Date[nrow(new_df)] <- df$Date[i]
+        #' Bins consecutive time points so each bin has at least 30 in the denominator.
+        #'
+        #' @param df A data frame with columns Date, Group, Numerator, Count.
+        #' @return A binned data frame with the same columns.
+        roll_forward <- function(df) {
+          new_df <- df[1, ]
+          new_df$Count <- 0
+          new_df$Numerator <- 0
           
-          if (new_df$Count[nrow(new_df)] >= 30) {
-            if (i < nrow(df)) {
-              new_df <- rbind(new_df, df[i + 1, ])
-              new_df$Count[nrow(new_df)] <- 0
-              new_df$Numerator[nrow(new_df)] <- 0
+          for (i in 1:nrow(df)) {
+            new_df$Numerator[nrow(new_df)] <- new_df$Numerator[nrow(new_df)] + df$Numerator[i]
+            new_df$Count[nrow(new_df)] <- new_df$Count[nrow(new_df)] + df$Count[i]
+            new_df$Date[nrow(new_df)] <- df$Date[i]
+            
+            if (new_df$Count[nrow(new_df)] >= 30) {
+              if (i < nrow(df)) {
+                new_df <- rbind(new_df, df[i + 1, ])
+                new_df$Count[nrow(new_df)] <- 0
+                new_df$Numerator[nrow(new_df)] <- 0
+              }
             }
           }
+          return(new_df)
         }
-        return(new_df)
+        
+        tsData <- tsData %>%
+          group_by(Group) %>%
+          group_modify(~ roll_forward(.)) %>%
+          mutate(propS = ifelse(Count > 0, (Numerator / Count) * 100, NA_real_)) %>%
+          filter(Count >= 30, is.finite(propS), !is.na(Date))
+      } else {
+        # Prevalence: keep all bins (including the incomplete final bin).
+        tsData <- tsData %>%
+          mutate(propS = ifelse(Count > 0, (Numerator / Count) * 100, NA_real_)) %>%
+          filter(is.finite(propS), !is.na(Date))
       }
-      
-      tsData <- tsData %>%
-        group_by(Group) %>%
-        group_modify(~ roll_forward(.)) %>%
-        mutate(propS = ifelse(Count > 0, (Numerator / Count) * 100, NA_real_)) %>%
-        filter(Count >= 30, is.finite(propS), !is.na(Date))
-      
+            
       # ----------------------------------------------------------------------------
       # Helper: build hover text
       # ----------------------------------------------------------------------------
