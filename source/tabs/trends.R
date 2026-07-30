@@ -230,9 +230,15 @@ server <- function(id, reactiveData, allCulturesData = reactive(NULL)) {
 
     output$content <- renderUI({
       req(plotData())
+      
+      # Show the AST-less info banner even when plotData is empty
+      # (it helps users understand WHY the plot is empty)
+      banner <- uiOutput(ns("astLessInfo"))
+      
       if (!is.null(plotData()) && nrow(plotData()) > 0) {
         tagList(
-          uiOutput(ns("idWarning")), # warning shown when ID column is missing in prevalence mode
+          banner,
+          uiOutput(ns("idWarning")),     # warning shown when ID column is missing in prevalence mode
           wellPanel(
             style = "overflow-x: scroll; overflow-y: scroll; max-height: 80vh;",
             div(style = "min-height: 750px", plotlyOutput(ns("plot"), height = "71vh")),
@@ -241,13 +247,16 @@ server <- function(id, reactiveData, allCulturesData = reactive(NULL)) {
           actionButton(ns("save_btn"), "Save", class = "plotSaveButton")
         )
       } else {
-        wellPanel(
-          style = "display: flex; align-items: center; justify-content: center; max-height: 80vh;",
-          div(
-            style = "min-width: 1150px; min-height: 750px; display: flex; align-items: center; justify-content: center;",
-            uiOutput(ns("errorHandling"))
-          ),
-          class = "contentWell"
+        tagList(
+          banner,  # Show banner above the error message too
+          wellPanel(
+            style = "display: flex; align-items: center; justify-content: center; max-height: 80vh;",
+            div(
+              style = "min-width: 1150px; min-height: 750px; display: flex; align-items: center; justify-content: center;",
+              uiOutput(ns("errorHandling"))
+            ),
+            class = "contentWell"
+          )
         )
       }
     })
@@ -259,6 +268,35 @@ server <- function(id, reactiveData, allCulturesData = reactive(NULL)) {
         h4("Oops... looks like there isn't enough data for this plot."),
         h6("Try reducing the number of filters applied or adjust your data in the 'Import' tab.")
       )
+    })
+
+    # Show helpful message when only culture data is available (no AST data)
+    output$astLessInfo <- renderUI({
+      # Check if the active data has AST information
+      # AST data must have Antimicrobial and Interpretation columns with actual values
+      data <- activeData()
+      
+      hasAst <- !is.null(data) && 
+                nrow(data) > 0 && 
+                "Antimicrobial" %in% names(data) && 
+                "Interpretation" %in% names(data) &&
+                any(!is.na(data$Antimicrobial)) &&
+                any(!is.na(data$Interpretation))
+      
+      # Only show tip when there's no AST data
+      if (!hasAst) {
+        div(
+          style = "background-color: #d1ecf1; border: 1px solid #bee5eb; color: #0c5460; 
+                   padding: 15px; border-radius: 4px; margin-bottom: 15px;",
+          icon("info-circle"),
+          strong(" Tip: "),
+          "No antimicrobial susceptibility data detected. Switch to ",
+          strong("'% Organism Prevalence'"),
+          " and select ",
+          strong("'All cultures'"),
+          " to analyze your culture data."
+        )
+      }
     })
 
     # Warn user when ID column is missing during prevalence analysis.
