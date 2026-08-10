@@ -7,3 +7,11 @@
 
 .DS_Store
 .vscode
+
+*.aider*
+.aider.chat.history.md
+.aider.conf.yml
+.aider.input.history
+.aider.input.history
+
+planning.txt

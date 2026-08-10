@@ -31,26 +31,33 @@ ui <- function(id) {
               style='float: right; color: #aaa;'></span>"
             ),
 
+            # Metric toggle
+            radioGroupButtons(
+              ns("metric"),
+              "Metric",
+              choices = c("% Susceptible", "% Organism Prevalence"),
+              direction = "vertical",
+              selected = "% Susceptible",
+              justified = TRUE
+            ),
 
-              # Metric toggle
+            # Data source toggle (only shown for prevalence)
+            conditionalPanel(
+              condition = sprintf("input['%s'] == '%% Organism Prevalence'", ns("metric")),
               radioGroupButtons(
-                ns("metric"),
-                "Metric",
-                choices = c("% Susceptible", "% Organism Prevalence"),
+                ns("dataSource"),
+                "Data Source",
+                choices = c("AST isolates only" = "ast", "All cultures" = "all"),
                 direction = "vertical",
-                selected = "% Susceptible",
+                selected = "ast",
                 justified = TRUE
               ),
-
-              # Data source toggle (only shown for prevalence)
-              conditionalPanel(
-                condition = sprintf("input['%s'] == '%% Organism Prevalence'", ns("metric")),
-                radioGroupButtons(
-                  ns("dataSource"),
-                  "Data Source",
-                  choices = c("AST isolates only" = "ast", "All cultures" = "all"),
+              radioGroupButtons(
+                  ns("timePeriod"),
+                  "Bin by",
+                  choices = c("Month", "Quarter", "Year"),
                   direction = "vertical",
-                  selected = "ast",
+                  selected = "Month",
                   justified = TRUE
                 )
               ),
@@ -119,6 +126,7 @@ ui <- function(id) {
 #'
 #' @param id            The ID of the module.
 #' @param reactiveData  A reactive that returns the cleaned data.
+#' @param allCulturesData A reactive that returns all cultures data (optional).
 #' @return              None.
 server <- function(id, reactiveData, allCulturesData = reactive(NULL)) {
   moduleServer(id, function(input, output, session) {
@@ -177,14 +185,60 @@ server <- function(id, reactiveData, allCulturesData = reactive(NULL)) {
     })
 
     # ------------------------------------------------------------------------------
+    # Utility functions
+    # ------------------------------------------------------------------------------
+
+    #' Assign time-based bins to dates.
+    #'
+    #' @param dates Vector of Date objects
+    #' @param period One of "Month", "Quarter", "Year"
+    #' @return Data frame with columns: Date (original), bin_id, bin_label (for display)
+    assign_time_bins <- function(dates, period = "Month") {
+      df <- data.frame(Date = dates) %>%
+        arrange(Date) %>%
+        distinct()
+      
+      if (period == "Month") {
+        df <- df %>%
+          mutate(
+            bin_id = format(Date, "%Y-%m"),
+            bin_label = format(Date, "%b %Y")  # e.g., "Jan 2023"
+          )
+      } else if (period == "Quarter") {
+        df <- df %>%
+          mutate(
+            year = year(Date),
+            quarter = quarter(Date),
+            bin_id = paste0(year, "-Q", quarter),
+            bin_label = paste0("Q", quarter, " ", year)  # e.g., "Q1 2023"
+          ) %>%
+          select(-year, -quarter)
+      } else {  # Year
+        df <- df %>%
+          mutate(
+            bin_id = format(Date, "%Y"),
+            bin_label = format(Date, "%Y")  # e.g., "2023"
+          )
+      }
+      
+      return(df)
+    }
+
+    # ------------------------------------------------------------------------------
     # Render UI
     # ------------------------------------------------------------------------------
 
     output$content <- renderUI({
       req(plotData())
+      
+      # Show the AST-less info banner even when plotData is empty
+      # (it helps users understand WHY the plot is empty)
+      banner <- uiOutput(ns("astLessInfo"))
+      
       if (!is.null(plotData()) && nrow(plotData()) > 0) {
         tagList(
-          uiOutput(ns("idWarning")), # warning shown when ID column is missing in prevalence mode
+          banner,
+          uiOutput(ns("idWarning")),     # warning shown when ID column is missing in prevalence mode
           wellPanel(
             style = "overflow-x: scroll; overflow-y: scroll; max-height: 80vh;",
             div(style = "min-height: 750px", plotlyOutput(ns("plot"), height = "71vh")),
@@ -193,13 +247,16 @@ server <- function(id, reactiveData, allCulturesData = reactive(NULL)) {
           actionButton(ns("save_btn"), "Save", class = "plotSaveButton")
         )
       } else {
-        wellPanel(
-          style = "display: flex; align-items: center; justify-content: center; max-height: 80vh;",
-          div(
-            style = "min-width: 1150px; min-height: 750px; display: flex; align-items: center; justify-content: center;",
-            uiOutput(ns("errorHandling"))
-          ),
-          class = "contentWell"
+        tagList(
+          banner,  # Show banner above the error message too
+          wellPanel(
+            style = "display: flex; align-items: center; justify-content: center; max-height: 80vh;",
+            div(
+              style = "min-width: 1150px; min-height: 750px; display: flex; align-items: center; justify-content: center;",
+              uiOutput(ns("errorHandling"))
+            ),
+            class = "contentWell"
+          )
         )
       }
     })
@@ -211,6 +268,35 @@ server <- function(id, reactiveData, allCulturesData = reactive(NULL)) {
         h4("Oops... looks like there isn't enough data for this plot."),
         h6("Try reducing the number of filters applied or adjust your data in the 'Import' tab.")
       )
+    })
+
+    # Show helpful message when only culture data is available (no AST data)
+    output$astLessInfo <- renderUI({
+      # Check if the active data has AST information
+      # AST data must have Antimicrobial and Interpretation columns with actual values
+      data <- activeData()
+      
+      hasAst <- !is.null(data) && 
+                nrow(data) > 0 && 
+                "Antimicrobial" %in% names(data) && 
+                "Interpretation" %in% names(data) &&
+                any(!is.na(data$Antimicrobial)) &&
+                any(!is.na(data$Interpretation))
+      
+      # Only show tip when there's no AST data
+      if (!hasAst) {
+        div(
+          style = "background-color: #d1ecf1; border: 1px solid #bee5eb; color: #0c5460; 
+                   padding: 15px; border-radius: 4px; margin-bottom: 15px;",
+          icon("info-circle"),
+          strong(" Tip: "),
+          "No antimicrobial susceptibility data detected. Switch to ",
+          strong("'% Organism Prevalence'"),
+          " and select ",
+          strong("'All cultures'"),
+          " to analyze your culture data."
+        )
+      }
     })
 
     # Warn user when ID column is missing during prevalence analysis.
@@ -271,43 +357,33 @@ server <- function(id, reactiveData, allCulturesData = reactive(NULL)) {
           filter(!is.na(Date))
         
         # ------------------------------------------------------------
-        # Establish shared bins across all organisms.
-        # Walk through dates in order; accumulate total isolates until
-        # the threshold is met, then start a new bin. Every organism
-        # will use these same bin boundaries so their denominators are
-        # comparable at each time point.
+        # Time-based binning for prevalence.
+        # Each bin represents a fixed time period (month/quarter/year)
+        # so all organisms share the same temporal boundaries.
         # ------------------------------------------------------------
-        totalsPerDate <- isolates %>%
-          group_by(Date) %>%
-          summarize(TotalOrgs = n(), .groups = "drop") %>%
-          arrange(Date)
         
-        # Assign a bin ID to each date.
-        bin_ids <- integer(nrow(totalsPerDate))
-        current_bin <- 1L
-        running_total <- 0L
-        for (i in seq_len(nrow(totalsPerDate))) {
-          bin_ids[i] <- current_bin
-          running_total <- running_total + totalsPerDate$TotalOrgs[i]
-          if (running_total >= 30) {
-            current_bin <- current_bin + 1L
-            running_total <- 0L
-          }
-        }
-        totalsPerDate$bin_id <- bin_ids
+        # Assign time bins to each date
+        timeBins <- assign_time_bins(
+          unique(isolates$Date), 
+          period = input$timePeriod
+        )
         
-        # Build per-bin summary: total isolates and end date.
-        binSummary <- totalsPerDate %>%
+        # Join bin assignments to isolates
+        isolates <- isolates %>%
+          left_join(timeBins, by = "Date")
+        
+        # Compute per-bin totals (denominator) and use last date in bin as label
+        binSummary <- isolates %>%
           group_by(bin_id) %>%
           summarize(
-            Count = sum(TotalOrgs),
-            Date = max(Date),  # Use last date in bin as the bin's label
+            Count = n(),
+            Date = max(Date),  # Last date in bin for x-axis positioning
+            bin_label = first(bin_label),
             .groups = "drop"
           )
         
-        # Attach bin ID to each isolate, then aggregate per (bin, organism).
+        # Aggregate per (bin, organism) for numerators
         tsData <- isolates %>%
-          left_join(totalsPerDate %>% select(Date, bin_id), by = "Date") %>%
           group_by(bin_id, Microorganism) %>%
           summarize(Numerator = n(), .groups = "drop") %>%
           left_join(binSummary, by = "bin_id") %>%
@@ -315,7 +391,8 @@ server <- function(id, reactiveData, allCulturesData = reactive(NULL)) {
             Date = Date,
             Group = Microorganism,
             Numerator = Numerator,
-            Count = Count
+            Count = Count,
+            bin_label = bin_label  # Keep for potential hover text enhancement
           ) %>%
           arrange(Group, Date)
       }
@@ -368,13 +445,31 @@ server <- function(id, reactiveData, allCulturesData = reactive(NULL)) {
       # ----------------------------------------------------------------------------
       # Helper: build hover text
       # ----------------------------------------------------------------------------
-      make_hover <- function(group_vals, count_vals, y_vals, date_vals) {
-        paste0(
+      make_hover <- function(group_vals, count_vals, y_vals, date_vals, bin_labels = NULL, numerator_vals = NULL) {
+        date_display <- if (!is.null(bin_labels)) bin_labels else as.character(date_vals)
+        
+        # Base hover text
+        hover_text <- paste0(
           groupLabel, ": ", group_vals,
-          "<br>", countLabel, ": ", count_vals,
-          "<br>", hoverNumLabel, ": ", round(y_vals, 3),
-          "<br>Date: ", date_vals
+          "<br>", countLabel, ": ", count_vals
         )
+        
+        # Add numerator line if provided (prevalence mode, no smoothing only)
+        if (!is.null(numerator_vals)) {
+          hover_text <- paste0(
+            hover_text,
+            "<br>Isolates of ", group_vals, ": ", numerator_vals
+          )
+        }
+        
+        # Add percentage and period
+        hover_text <- paste0(
+          hover_text,
+          "<br>", hoverNumLabel, ": ", round(y_vals, 3),
+          "<br>Period: ", date_display
+        )
+        
+        return(hover_text)
       }
       
       # ----------------------------------------------------------------------------
@@ -406,7 +501,8 @@ server <- function(id, reactiveData, allCulturesData = reactive(NULL)) {
           mode = 'lines+markers',
           color = ~Group,
           colors = colorPalette,
-          text = ~make_hover(Group, Count, ma_propS, Date),
+          text = ~make_hover(Group, Count, ma_propS, Date, 
+                            if ("bin_label" %in% names(tsDataRM)) tsDataRM$bin_label else NULL),
           hoverinfo = "text"
         ) %>%
           layout(
@@ -469,7 +565,8 @@ server <- function(id, reactiveData, allCulturesData = reactive(NULL)) {
           mode = 'lines+markers',
           color = ~Group,
           colors = colorPalette,
-          text = ~make_hover(Group, Count, low_propS, Date),
+          text = ~make_hover(Group, Count, low_propS, Date,
+                            if ("bin_label" %in% names(tsDataLowess)) tsDataLowess$bin_label else NULL),
           hoverinfo = "text"
         ) %>%
           layout(
@@ -512,6 +609,13 @@ server <- function(id, reactiveData, allCulturesData = reactive(NULL)) {
         numColors <- length(unique(tsData$Group))
         colorPalette <- get_gg_color_hue(numColors)
         
+        # For prevalence mode with no smoothing, include numerator in hover text
+        numerator_for_hover <- if (input$metric == "% Organism Prevalence") {
+          tsData$Numerator
+        } else {
+          NULL
+        }
+        
         plot_ly(
           tsData,
           x = ~Date,
@@ -520,7 +624,9 @@ server <- function(id, reactiveData, allCulturesData = reactive(NULL)) {
           mode = 'lines+markers',
           color = ~Group,
           colors = colorPalette,
-          text = ~make_hover(Group, Count, propS, Date),
+          text = ~make_hover(Group, Count, propS, Date,
+                            if ("bin_label" %in% names(tsData)) tsData$bin_label else NULL,
+                            numerator_for_hover),
           hoverinfo = "text"
         ) %>%
           layout(
@@ -549,9 +655,6 @@ server <- function(id, reactiveData, allCulturesData = reactive(NULL)) {
       }
     })
 
-    # ------------------------------------------------------------------------------
-    # Utility functions
-    # ------------------------------------------------------------------------------
     # ------------------------------------------------------------------------------
     # Observes
     # ------------------------------------------------------------------------------
