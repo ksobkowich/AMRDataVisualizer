@@ -445,14 +445,31 @@ server <- function(id, reactiveData, allCulturesData = reactive(NULL)) {
       # ----------------------------------------------------------------------------
       # Helper: build hover text
       # ----------------------------------------------------------------------------
-      make_hover <- function(group_vals, count_vals, y_vals, date_vals, bin_labels = NULL) {
+      make_hover <- function(group_vals, count_vals, y_vals, date_vals, bin_labels = NULL, numerator_vals = NULL) {
         date_display <- if (!is.null(bin_labels)) bin_labels else as.character(date_vals)
-        paste0(
+        
+        # Base hover text
+        hover_text <- paste0(
           groupLabel, ": ", group_vals,
-          "<br>", countLabel, ": ", count_vals,
+          "<br>", countLabel, ": ", count_vals
+        )
+        
+        # Add numerator line if provided (prevalence mode, no smoothing only)
+        if (!is.null(numerator_vals)) {
+          hover_text <- paste0(
+            hover_text,
+            "<br>Isolates of ", group_vals, ": ", numerator_vals
+          )
+        }
+        
+        # Add percentage and period
+        hover_text <- paste0(
+          hover_text,
           "<br>", hoverNumLabel, ": ", round(y_vals, 3),
           "<br>Period: ", date_display
         )
+        
+        return(hover_text)
       }
       
       # ----------------------------------------------------------------------------
@@ -592,6 +609,13 @@ server <- function(id, reactiveData, allCulturesData = reactive(NULL)) {
         numColors <- length(unique(tsData$Group))
         colorPalette <- get_gg_color_hue(numColors)
         
+        # For prevalence mode with no smoothing, include numerator in hover text
+        numerator_for_hover <- if (input$metric == "% Organism Prevalence") {
+          tsData$Numerator
+        } else {
+          NULL
+        }
+        
         plot_ly(
           tsData,
           x = ~Date,
@@ -601,7 +625,8 @@ server <- function(id, reactiveData, allCulturesData = reactive(NULL)) {
           color = ~Group,
           colors = colorPalette,
           text = ~make_hover(Group, Count, propS, Date,
-                            if ("bin_label" %in% names(tsData)) tsData$bin_label else NULL),
+                            if ("bin_label" %in% names(tsData)) tsData$bin_label else NULL,
+                            numerator_for_hover),
           hoverinfo = "text"
         ) %>%
           layout(
