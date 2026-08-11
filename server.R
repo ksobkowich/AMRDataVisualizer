@@ -140,13 +140,17 @@ server <- function(input, output, session) {
       # --- Reduced menu: only all-cultures data available ------------------------
       # AST-dependent tabs (Antibiogram, MDR, Explore, MIC tables) are hidden
       # because they can't do anything meaningful without susceptibility results.
-      # Map will be added here once prevalence support is built into it.
       sidebarMenu(
         id = "tabs",
         menuItem(
           "Overview",
           tabName = "ovTab",
           icon = icon("magnifying-glass-chart", class = "nav-icon")
+        ),
+        menuItem(
+          "Map",
+          tabName = "mapTab",
+          icon = icon("map-location-dot", class = "nav-icon")
         ),
         menuItem(
           "Trends",

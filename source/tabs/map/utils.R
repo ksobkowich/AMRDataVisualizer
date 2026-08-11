@@ -18,11 +18,19 @@ preprocessMapData <- function(data) {
       filter(Region %in% uniqueRegions) %>%
       select(Region, Subregion, geometry)
   } else {
-    if (all(grepl("^\\d{3}$", uniqueSubregions))) {
+    # Check for both 3-digit and 5-digit ZIP codes
+    is_zip <- all(grepl("^\\d{3,5}$", uniqueSubregions[!is.na(uniqueSubregions)]))
+    
+    if (is_zip) {
+      # Truncate 5-digit ZIPs to 3-digit for ZCTA3 matching
+      uniqueSubregions_3digit <- unique(substr(uniqueSubregions, 1, 3))
+      
       map <- st_read("./Data/mapFiles/USA/usa_zcta3.shp") %>%
         mutate(Region = NA_character_) %>%
-        filter(Subregion %in% uniqueSubregions) %>%
+        filter(Subregion %in% uniqueSubregions_3digit) %>%
         select(Region, Subregion, geometry)
+      
+      print(paste("Sample Subregions from shapefile:", paste(head(unique(map$Subregion)), collapse = ", ")))
     } else {
       map <- st_read("./Data/mapFiles/USA/usa_county.shp") %>%
         filter(Region %in% uniqueRegions) %>%
@@ -62,6 +70,55 @@ preprocessPlotData <- function(data) {
   return(mapData)
 }
 
+#' Preprocess data for prevalence plotting on map.
+#'
+#' @param filteredData    Dataframe with filtered data (selected organisms).
+#' @param unfilteredData  Dataframe with unfiltered data (for regional totals).
+#' @param dateFilter      Optional date filter to apply to denominator (list with start_date and end_date).
+#' @return                Dataframe processed for plotting prevalence on map.
+preprocessPlotDataPrevalence <- function(filteredData, unfilteredData, dateFilter = NULL) {
+  if (is.null(filteredData) || nrow(filteredData) == 0) {
+    return(NULL)
+  }
+  
+  # Numerator: count of selected organisms (from filtered data)
+  numeratorData <- filteredData %>%
+    select(Region, Subregion, Microorganism) %>%
+    group_by(Region, Subregion) %>%
+    summarise(
+      Numerator = n(),
+      .groups = "drop"
+    )
+  
+  # Denominator: total isolates per region (from unfiltered data)
+  # Apply ONLY the Date filter if it exists
+  totalsData <- unfilteredData
+  
+  if (!is.null(dateFilter) && "Date" %in% names(unfilteredData)) {
+    if (!is.null(dateFilter$start_date) && !is.null(dateFilter$end_date)) {
+      totalsData <- totalsData %>%
+        filter(Date >= dateFilter$start_date & Date <= dateFilter$end_date)
+    }
+  }
+  
+  totals <- totalsData %>%
+    select(Region, Subregion) %>%
+    group_by(Region, Subregion) %>%
+    summarise(Count = n(), .groups = "drop")
+  
+  # Combine and calculate prevalence
+  mapData <- totals %>%
+    left_join(numeratorData, by = c("Region", "Subregion")) %>%
+    mutate(
+      Numerator = replace_na(Numerator, 0),  # Regions with no selected organisms get 0
+      propPrevalence = Numerator / Count,
+      Subregion = tolower(gsub(" County", "", Subregion))
+    ) %>%
+    select(Region, Subregion, propPrevalence, Numerator, Count)
+  
+  return(mapData)
+}
+
 #' TODO: Documentation
 #' [Summary]
 #'
@@ -73,54 +130,95 @@ matchSubregions <- function(map, data) {
     return(NULL)
   }
 
-  numCores <- detectCores() - 1
+  # Check if Subregions are ZIP codes (all numeric, 3 or 5 digits)
+  # If so, skip NLP processing entirely
+  sample_subregions <- unique(data$Subregion[!is.na(data$Subregion)])
+  is_zip_code <- all(grepl("^\\d{3,5}$", sample_subregions))
+  
+  if (is_zip_code) {
+    # ZIP codes don't need NLP processing - use them directly
+    # For 5-digit ZIPs, truncate to 3-digit for ZCTA3 matching
+    data <- data %>%
+      mutate(Subregion = ifelse(
+        !is.na(Subregion) & nchar(Subregion) == 5,
+        substr(Subregion, 1, 3),
+        Subregion
+      ))
+    
+    print(paste("Sample Subregions from data after truncation:", paste(head(unique(data$Subregion)), collapse = ", ")))
+    
+    # Join only on Subregion for ZIP codes (shapefile has Region = NA)
+    mapData <- data %>%
+      mutate(Subregion = as.character(Subregion)) %>%
+      left_join(map, by = "Subregion")
+    
+    print(paste("Rows with geometry after join:", sum(!is.na(st_dimension(mapData$geometry)))))
+    print(paste("Rows without geometry after join:", sum(is.na(st_dimension(mapData$geometry)))))
+    
+    return(mapData)
+  }
 
+  # For non-ZIP subregions (counties, etc.), use spaCy NLP
+  # This requires spaCy to be installed
+  
+  numCores <- detectCores() - 1
   chunks <- split(data, rep(1:numCores, length.out = nrow(data)))
 
-  #' TODO: Documentation
-  #' [Summary]
+  #' Extract location names using spaCy NER
   #'
-  #' @param text [Description]
-  #' @return [Description]
+  #' @param text Location text to parse
+  #' @return Extracted location token(s)
   extract_locations <- function(text) {
     if (is.na(text) || text == "") {
-      return(character(0)) # Return empty character vector for missing values
+      return(character(0))
     }
 
     text <- tolower(text)
     text <- gsub("[[:punct:]]", "", text)
     text <- gsub("\\s+", " ", text)
-    parsed <- spacy_parse(text)
-
-    if (nrow(parsed) == 0) {
-      return(character(0))
+    
+    # Check if spaCy is available
+    if (!requireNamespace("spacyr", quietly = TRUE)) {
+      warning("spacyr package not available. Returning original text.")
+      return(text)
     }
+    
+    tryCatch({
+      parsed <- spacy_parse(text)
+      
+      if (nrow(parsed) == 0) {
+        return(character(0))
+      }
 
-    locations <- parsed %>%
-      filter(entity == 'GPE_B' | entity == 'GPE_I') %>%
-      select(token)
+      locations <- parsed %>%
+        filter(entity == 'GPE_B' | entity == 'GPE_I') %>%
+        select(token)
 
-    return(locations$token)
+      return(locations$token)
+    }, error = function(e) {
+      warning("spaCy parsing failed: ", e$message, ". Returning original text.")
+      return(text)
+    })
   }
 
   lookup <- sapply(data$Subregion, function(x) {
     if (is.na(x) || x == "") {
-      return(NA) # Explicitly return NA for missing values
+      return(NA)
     }
 
-    extracted_location <- extract_locations(x) # Extract location using NER
+    extracted_location <- extract_locations(x)
 
     if (length(extracted_location) > 0) {
       return(tolower(extracted_location))
     } else {
-      return(x)
+      return(tolower(x))
     }
   })
 
-  data$Subregion <- lookup # Replace original column with mapped values
+  data$Subregion <- lookup
 
   mapData <- data %>%
-    mutate(Subregion = as.character(Subregion)) %>% # Ensure consistent type
+    mutate(Subregion = as.character(Subregion)) %>%
     left_join(map, by = c("Region", "Subregion"))
 
   return(mapData)
