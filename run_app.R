@@ -3,30 +3,29 @@
 
 message("Setting up AMR Data Visualizer...")
 
-# 1. Force R to only use pre-compiled binaries and never compile from C/C++ source
+# 1. Configure R and renv to use pak for binary installs and disable source compilation
 options(
-  download.file.method = "libcurl",
-  pkgType = "binary",                             # Force binary downloads on Windows
-  install.packages.compile.from.source = "never", # Prevent R from attempting 'make' build steps
+  renv.config.pak.enabled = TRUE,                 # Delegate installation to pak (binary-first)
   renv.config.install.staged = FALSE,
-  renv.config.clean.unused = FALSE
+  install.packages.compile.from.source = "never", # Strictly forbid source compilation
+  pkgType = "binary"                              # Prefer binaries for Windows
 )
 
-# 2. Use Posit Package Manager for access to pre-compiled Windows binaries
-options(repos = c(CRAN = "https://packagemanager.posit.co/cran/latest"))
-
-# 3. Ensure renv is installed
+# 2. Ensure pak and renv are installed
+if (!requireNamespace("pak", quietly = TRUE)) {
+  install.packages("pak", repos = "https://cloud.r-project.org")
+}
 if (!requireNamespace("renv", quietly = TRUE)) {
-  install.packages("renv", type = "binary")
+  install.packages("renv", repos = "https://cloud.r-project.org")
 }
 
-# 4. Download lockfile
+# 3. Download lockfile
 lock_url <- "https://raw.githubusercontent.com/AMR-Visualizer/AMRDataVisualizer/main/renv.lock"
 tmp_lock <- tempfile(fileext = ".lock")
 download.file(lock_url, tmp_lock, quiet = TRUE)
 
-# 5. Restore dependencies using binary packages
-message("Checking and installing dependencies (downloading pre-compiled binaries)...")
+# 4. Restore dependencies using pak
+message("Checking and installing dependencies (downloading binaries)...")
 renv::restore(
   lockfile = tmp_lock,
   library = .libPaths()[1],
@@ -37,7 +36,7 @@ renv::restore(
 # Clean up temporary lockfile
 unlink(tmp_lock)
 
-# 6. Launch the app
+# 5. Launch the app
 message("Launching app...")
 shiny::runGitHub(
   repo = "AMRDataVisualizer",
