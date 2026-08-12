@@ -1,31 +1,22 @@
 # Bootstrap script for AMR Data Visualizer
 # Usage: source("https://raw.githubusercontent.com/AMR-Visualizer/AMRDataVisualizer/main/run_app.R")
 
+# Bootstrap script for AMR Data Visualizer
 message("Setting up AMR Data Visualizer...")
 
-# Ensure jsonlite is available (needed to read the lockfile)
-if (!requireNamespace("jsonlite", quietly = TRUE)) {
-  install.packages("jsonlite")
+# Install pak if missing (pak is a modern, fast package manager for R)
+if (!requireNamespace("pak", quietly = TRUE)) {
+  install.packages("pak", repos = "https://cloud.r-project.org")
 }
 
-# Read the lockfile directly from GitHub
+# Download the lockfile to a temporary location
 lock_url <- "https://raw.githubusercontent.com/AMR-Visualizer/AMRDataVisualizer/main/renv.lock"
-lock <- jsonlite::fromJSON(lock_url)
-pkgs <- names(lock$Packages)
+tmp_lock <- tempfile(fileext = ".lock")
+download.file(lock_url, tmp_lock, quiet = TRUE)
 
-# Identify missing packages
-installed <- rownames(installed.packages())
-missing <- setdiff(pkgs, installed)
-
-
-# Install missing packages
-options(install.packages.compile.from.source = "never")
-if (length(missing) > 0) {
-  message("Installing ", length(missing), " missing packages. This may take a while...")
-  install.packages(missing)
-} else {
-  message("All required packages already installed.")
-}
+# pak reads the lockfile and handles CRAN vs GitHub automatically
+message("Installing missing packages. This may take a moment...")
+pak::lockfile_install(tmp_lock)
 
 # Launch the app
 message("Launching app...")
