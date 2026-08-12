@@ -3,27 +3,37 @@
 
 message("Setting up AMR Data Visualizer...")
 
-# 1. Install renv if it isn't already installed
-if (!requireNamespace("renv", quietly = TRUE)) {
-  install.packages("renv", repos = "https://cloud.r-project.org")
-}
+# Ensure required setup tools are available
+if (!requireNamespace("renv", quietly = TRUE)) install.packages("renv", repos = "https://cloud.r-project.org")
+if (!requireNamespace("jsonlite", quietly = TRUE)) install.packages("jsonlite", repos = "https://cloud.r-project.org")
 
-# 2. Download the lockfile to a temporary file
+# Download lockfile
 lock_url <- "https://raw.githubusercontent.com/AMR-Visualizer/AMRDataVisualizer/main/renv.lock"
 tmp_lock <- tempfile(fileext = ".lock")
 download.file(lock_url, tmp_lock, quiet = TRUE)
 
-# 3. Restore all packages (CRAN & GitHub) into the active R library
-message("Checking and installing dependencies from renv.lock...")
-renv::restore(
-  lockfile = tmp_lock,
-  library = .libPaths()[1],
-  prompt = FALSE
-)
+# Read lockfile and find ONLY packages that aren't installed yet
+lock <- jsonlite::fromJSON(tmp_lock)
+required_pkgs <- names(lock$Packages)
+installed_pkgs <- rownames(installed.packages())
+missing_pkgs <- setdiff(required_pkgs, installed_pkgs)
 
-# Clean up temp file
+# Only run restore if there are actually missing packages
+if (length(missing_pkgs) > 0) {
+  message("Installing ", length(missing_pkgs), " missing package(s)...")
+  renv::restore(
+    lockfile = tmp_lock,
+    packages = missing_pkgs,
+    library = .libPaths()[1],
+    prompt = FALSE
+  )
+} else {
+  message("All required packages are already installed.")
+}
+
+# Clean up temporary lockfile
 unlink(tmp_lock)
 
-# 4. Launch the app
+# Launch the app
 message("Launching app...")
 shiny::runGitHub("AMR-Visualizer/AMRDataVisualizer")
