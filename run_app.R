@@ -3,25 +3,30 @@
 
 message("Setting up AMR Data Visualizer...")
 
-# Force modern HTTPS download handling and disable staged installs
+# 1. Force R to only use pre-compiled binaries and never compile from C/C++ source
 options(
   download.file.method = "libcurl",
+  pkgType = "binary",                             # Force binary downloads on Windows
+  install.packages.compile.from.source = "never", # Prevent R from attempting 'make' build steps
   renv.config.install.staged = FALSE,
   renv.config.clean.unused = FALSE
 )
 
-# 1. Ensure renv is installed
+# 2. Use Posit Package Manager for access to pre-compiled Windows binaries
+options(repos = c(CRAN = "https://packagemanager.posit.co/cran/latest"))
+
+# 3. Ensure renv is installed
 if (!requireNamespace("renv", quietly = TRUE)) {
-  install.packages("renv", repos = "https://cloud.r-project.org")
+  install.packages("renv", type = "binary")
 }
 
-# 2. Download lockfile
+# 4. Download lockfile
 lock_url <- "https://raw.githubusercontent.com/AMR-Visualizer/AMRDataVisualizer/main/renv.lock"
 tmp_lock <- tempfile(fileext = ".lock")
 download.file(lock_url, tmp_lock, quiet = TRUE)
 
-# 3. Restore dependencies directly to active R library
-message("Checking and installing dependencies...")
+# 5. Restore dependencies using binary packages
+message("Checking and installing dependencies (downloading pre-compiled binaries)...")
 renv::restore(
   lockfile = tmp_lock,
   library = .libPaths()[1],
@@ -32,7 +37,7 @@ renv::restore(
 # Clean up temporary lockfile
 unlink(tmp_lock)
 
-# 4. Launch the app using explicit repository details and branch ref
+# 6. Launch the app
 message("Launching app...")
 shiny::runGitHub(
   repo = "AMRDataVisualizer",
