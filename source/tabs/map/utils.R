@@ -13,11 +13,78 @@ preprocessMapData <- function(data) {
   options(tigris_class = "generalized")
 
   if (all(is.na(uniqueSubregions) | uniqueSubregions == "")) {
-    map <- st_read("./Data/mapFiles/USA/usa_state.shp") %>%
-      mutate(Subregion = NA_character_) %>%
-      filter(Region %in% uniqueRegions) %>%
-      select(Region, Subregion, geometry)
+    # No subregion data - check what's in Region
+    
+    # Check if Region contains ZIP codes (3 or 5 digits)
+    is_zip_in_region <- all(grepl("^\\d{3,5}$", uniqueRegions[!is.na(uniqueRegions)]))
+    
+    if (is_zip_in_region) {
+      # ZIP codes in Region column - load ZIP shapefile
+      uniqueRegions_3digit <- unique(substr(as.character(uniqueRegions), 1, 3))
+      
+      map <- st_read("./Data/mapFiles/USA/usa_zcta3.shp") %>%
+        rename(Region = Subregion) %>%  # ZIP shapefile has ZIPs in Subregion column
+        mutate(
+          Subregion = NA_character_,
+          Region = as.character(Region)  # Ensure character type for joining
+        ) %>%
+        filter(Region %in% uniqueRegions_3digit) %>%
+        select(Region, Subregion, geometry)
+      
+    } else {
+      # State names or abbreviations in Region column - load state shapefile
+      
+      # Check if we have state abbreviations (2 letters, any case)
+      is_state_abbrev <- all(grepl("^[A-Za-z]{2}$", uniqueRegions[!is.na(uniqueRegions)]))
+      
+      if (is_state_abbrev) {
+        # Convert abbreviations to full names for matching
+        state_lookup <- c(
+          "AL" = "Alabama", "AK" = "Alaska", "AZ" = "Arizona", "AR" = "Arkansas",
+          "CA" = "California", "CO" = "Colorado", "CT" = "Connecticut", "DE" = "Delaware",
+          "FL" = "Florida", "GA" = "Georgia", "HI" = "Hawaii", "ID" = "Idaho",
+          "IL" = "Illinois", "IN" = "Indiana", "IA" = "Iowa", "KS" = "Kansas",
+          "KY" = "Kentucky", "LA" = "Louisiana", "ME" = "Maine", "MD" = "Maryland",
+          "MA" = "Massachusetts", "MI" = "Michigan", "MN" = "Minnesota", "MS" = "Mississippi",
+          "MO" = "Missouri", "MT" = "Montana", "NE" = "Nebraska", "NV" = "Nevada",
+          "NH" = "New Hampshire", "NJ" = "New Jersey", "NM" = "New Mexico", "NY" = "New York",
+          "NC" = "North Carolina", "ND" = "North Dakota", "OH" = "Ohio", "OK" = "Oklahoma",
+          "OR" = "Oregon", "PA" = "Pennsylvania", "RI" = "Rhode Island", "SC" = "South Carolina",
+          "SD" = "South Dakota", "TN" = "Tennessee", "TX" = "Texas", "UT" = "Utah",
+          "VT" = "Vermont", "VA" = "Virginia", "WA" = "Washington", "WV" = "West Virginia",
+          "WI" = "Wisconsin", "WY" = "Wyoming", "DC" = "District of Columbia"
+        )
+        
+        # Normalize to uppercase for lookup
+        uniqueRegions_upper <- toupper(uniqueRegions)
+        uniqueRegions_full <- state_lookup[uniqueRegions_upper]
+        
+        # Create reverse lookup BEFORE loading shapefile
+        reverse_lookup <- setNames(names(state_lookup), state_lookup)
+        
+        map <- st_read("./Data/mapFiles/USA/usa_state.shp") %>%
+          mutate(Subregion = NA_character_) %>%
+          filter(Region %in% uniqueRegions_full) %>%
+          mutate(Region = reverse_lookup[Region]) %>%  # Convert BEFORE select
+          select(Region, Subregion, geometry)
+        
+        # Convert back to original case
+        # Create a mapping from uppercase to original case
+        case_mapping <- setNames(uniqueRegions, uniqueRegions_upper)
+        map <- map %>%
+          mutate(Region = case_mapping[Region])
+        
+      } else {
+        # Full state names - use as-is
+        map <- st_read("./Data/mapFiles/USA/usa_state.shp") %>%
+          mutate(Subregion = NA_character_) %>%
+          filter(Region %in% uniqueRegions) %>%
+          select(Region, Subregion, geometry)
+      }
+    }
+    
   } else {
+    # Has subregion data - existing logic
     # Check for both 3-digit and 5-digit ZIP codes
     is_zip <- all(grepl("^\\d{3,5}$", uniqueSubregions[!is.na(uniqueSubregions)]))
     
@@ -48,24 +115,51 @@ preprocessPlotData <- function(data) {
   if (is.null(data) || nrow(data) == 0) {
     return(NULL)
   }
-  mapData <- data %>%
-    select(Region, Subregion, Interpretation) %>%
-    group_by(Region, Subregion) %>%
-    # Need to remove NAs otherwise sum returns NA
-    summarise(
-      S = sum(Interpretation == "S", na.rm = TRUE),
-      I = sum(Interpretation == "I", na.rm = TRUE),
-      R = sum(Interpretation == "R", na.rm = TRUE),
-      .groups = "drop"
-    ) %>%
-    mutate(
-      Count = S + I + R,
-      propS = S / Count,
-      propI = I / Count,
-      propR = R / Count,
-      Subregion = tolower(gsub(" County", "", Subregion))
-    ) %>%
-    select(Region, Subregion, propS, propI, propR, Count)
+  
+  # Check if we have subregion data
+  has_subregion <- any(!is.na(data$Subregion) & data$Subregion != "")
+  
+  if (has_subregion) {
+    # Group by both Region and Subregion
+    mapData <- data %>%
+      select(Region, Subregion, Interpretation) %>%
+      group_by(Region, Subregion) %>%
+      # Need to remove NAs otherwise sum returns NA
+      summarise(
+        S = sum(Interpretation == "S", na.rm = TRUE),
+        I = sum(Interpretation == "I", na.rm = TRUE),
+        R = sum(Interpretation == "R", na.rm = TRUE),
+        .groups = "drop"
+      ) %>%
+      mutate(
+        Count = S + I + R,
+        propS = S / Count,
+        propI = I / Count,
+        propR = R / Count,
+        Subregion = tolower(gsub(" County", "", Subregion))
+      ) %>%
+      select(Region, Subregion, propS, propI, propR, Count)
+  } else {
+    # Group by Region only (for ZIP-in-Region or state-only data)
+    mapData <- data %>%
+      mutate(Region = as.character(Region)) %>%  # Ensure character type
+      select(Region, Interpretation) %>%
+      group_by(Region) %>%
+      summarise(
+        S = sum(Interpretation == "S", na.rm = TRUE),
+        I = sum(Interpretation == "I", na.rm = TRUE),
+        R = sum(Interpretation == "R", na.rm = TRUE),
+        .groups = "drop"
+      ) %>%
+      mutate(
+        Count = S + I + R,
+        propS = S / Count,
+        propI = I / Count,
+        propR = R / Count,
+        Subregion = NA_character_
+      ) %>%
+      select(Region, Subregion, propS, propI, propR, Count)
+  }
 
   return(mapData)
 }
@@ -81,40 +175,78 @@ preprocessPlotDataPrevalence <- function(filteredData, unfilteredData, dateFilte
     return(NULL)
   }
   
-  # Numerator: count of selected organisms (from filtered data)
-  numeratorData <- filteredData %>%
-    select(Region, Subregion, Microorganism) %>%
-    group_by(Region, Subregion) %>%
-    summarise(
-      Numerator = n(),
-      .groups = "drop"
-    )
+  # Check if we have subregion data
+  has_subregion <- any(!is.na(filteredData$Subregion) & filteredData$Subregion != "")
   
-  # Denominator: total isolates per region (from unfiltered data)
-  # Apply ONLY the Date filter if it exists
-  totalsData <- unfilteredData
-  
-  if (!is.null(dateFilter) && "Date" %in% names(unfilteredData)) {
-    if (!is.null(dateFilter$start_date) && !is.null(dateFilter$end_date)) {
-      totalsData <- totalsData %>%
-        filter(Date >= dateFilter$start_date & Date <= dateFilter$end_date)
+  if (has_subregion) {
+    # Numerator: count of selected organisms (from filtered data)
+    numeratorData <- filteredData %>%
+      select(Region, Subregion, Microorganism) %>%
+      group_by(Region, Subregion) %>%
+      summarise(Numerator = n(), .groups = "drop")
+    
+    # Denominator: total isolates per region (from unfiltered data)
+    # Apply ONLY the Date filter if it exists
+    totalsData <- unfilteredData
+    
+    if (!is.null(dateFilter) && "Date" %in% names(unfilteredData)) {
+      if (!is.null(dateFilter$start_date) && !is.null(dateFilter$end_date)) {
+        totalsData <- totalsData %>%
+          filter(Date >= dateFilter$start_date & Date <= dateFilter$end_date)
+      }
     }
+    
+    totals <- totalsData %>%
+      select(Region, Subregion) %>%
+      group_by(Region, Subregion) %>%
+      summarise(Count = n(), .groups = "drop")
+    
+    # Combine and calculate prevalence
+    mapData <- totals %>%
+      left_join(numeratorData, by = c("Region", "Subregion")) %>%
+      mutate(
+        Numerator = replace_na(Numerator, 0),  # Regions with no selected organisms get 0
+        propPrevalence = Numerator / Count,
+        Subregion = tolower(gsub(" County", "", Subregion))
+      ) %>%
+      select(Region, Subregion, propPrevalence, Numerator, Count)
+    
+  } else {
+    # Group by Region only (for ZIP-in-Region or state-only data)
+    
+    # Numerator: count of selected organisms
+    numeratorData <- filteredData %>%
+      mutate(Region = as.character(Region)) %>%  # Ensure character type
+      select(Region, Microorganism) %>%
+      group_by(Region) %>%
+      summarise(Numerator = n(), .groups = "drop")
+    
+    # Denominator: total isolates per region
+    totalsData <- unfilteredData
+    
+    if (!is.null(dateFilter) && "Date" %in% names(unfilteredData)) {
+      if (!is.null(dateFilter$start_date) && !is.null(dateFilter$end_date)) {
+        totalsData <- totalsData %>%
+          filter(Date >= dateFilter$start_date & Date <= dateFilter$end_date)
+      }
+    }
+    
+    totals <- totalsData %>%
+      mutate(Region = as.character(Region)) %>%  # Ensure character type
+      select(Region) %>%
+      group_by(Region) %>%
+      summarise(Count = n(), .groups = "drop")
+    
+    # Combine and calculate prevalence
+    mapData <- totals %>%
+      left_join(numeratorData, by = "Region") %>%
+      mutate(
+        Numerator = replace_na(Numerator, 0),
+        propPrevalence = Numerator / Count,
+        Subregion = NA_character_
+      ) %>%
+      select(Region, Subregion, propPrevalence, Numerator, Count)
   }
-  
-  totals <- totalsData %>%
-    select(Region, Subregion) %>%
-    group_by(Region, Subregion) %>%
-    summarise(Count = n(), .groups = "drop")
-  
-  # Combine and calculate prevalence
-  mapData <- totals %>%
-    left_join(numeratorData, by = c("Region", "Subregion")) %>%
-    mutate(
-      Numerator = replace_na(Numerator, 0),  # Regions with no selected organisms get 0
-      propPrevalence = Numerator / Count,
-      Subregion = tolower(gsub(" County", "", Subregion))
-    ) %>%
-    select(Region, Subregion, propPrevalence, Numerator, Count)
   
   return(mapData)
 }
@@ -133,7 +265,10 @@ matchSubregions <- function(map, data) {
   # Check if Subregions are ZIP codes (all numeric, 3 or 5 digits)
   # If so, skip NLP processing entirely
   sample_subregions <- unique(data$Subregion[!is.na(data$Subregion)])
-  is_zip_code <- all(grepl("^\\d{3,5}$", sample_subregions))
+  
+  # FIX: Only treat as ZIP if we actually have subregion data
+  has_subregion <- length(sample_subregions) > 0
+  is_zip_code <- has_subregion && all(grepl("^\\d{3,5}$", sample_subregions))
   
   if (is_zip_code) {
     # ZIP codes don't need NLP processing - use them directly
@@ -154,6 +289,15 @@ matchSubregions <- function(map, data) {
     
     print(paste("Rows with geometry after join:", sum(!is.na(st_dimension(mapData$geometry)))))
     print(paste("Rows without geometry after join:", sum(is.na(st_dimension(mapData$geometry)))))
+    
+    return(mapData)
+  }
+  
+  # FIX: Handle state-level only data (no subregions at all)
+  if (!has_subregion) {
+    # No subregion data - join on Region only
+    mapData <- data %>%
+      left_join(map, by = "Region")
     
     return(mapData)
   }

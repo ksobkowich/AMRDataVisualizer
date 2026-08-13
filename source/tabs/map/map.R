@@ -140,19 +140,32 @@ server <- function(id, reactiveData) {
       
       mapData <- matchSubregions(baseMap(), mapData)
 
-      # For ZIP codes, baseMap has Region = NA, so join only on Subregion
-      # For counties/states, join on both Region and Subregion
+      # Determine join strategy based on what geographic data is present
       sample_subregions <- unique(reactiveData()$Subregion[!is.na(reactiveData()$Subregion)])
-      is_zip_code <- all(grepl("^\\d{3,5}$", sample_subregions))
+      has_subregion <- length(sample_subregions) > 0
+      is_zip_code <- has_subregion && all(grepl("^\\d{3,5}$", sample_subregions))
 
       if (is_zip_code) {
+        # ZIP codes: join only on Subregion (baseMap has Region = NA for ZIPs)
         map <- baseMap() %>%
           left_join(mapData, by = "Subregion") %>%
           mutate(Subregion = str_to_sentence(Subregion))
-      } else {
+      } else if (has_subregion) {
+        # Counties: join on both Region and Subregion
         map <- baseMap() %>%
           left_join(mapData, by = c("Region", "Subregion")) %>%
           mutate(Subregion = str_to_sentence(Subregion))
+      } else {
+        # State-level only (no Subregion data): join on Region only
+        map <- baseMap() %>%
+          left_join(mapData, by = "Region")
+      }
+
+      # Determine which column to use for coloring (define before use)
+      colorColumn <- if (!is.null(input$metric) && input$metric == "% Organism Prevalence") {
+        "propPrevalence"
+      } else {
+        "propS"
       }
 
       # Set color palette and breakpoints based on metric
@@ -176,13 +189,17 @@ server <- function(id, reactiveData) {
         map2 <- map2 %>%
           mutate(ID = as.character(row_number()))
         
+        # Store the color column value BEFORE dropping geometry
+        map2 <- map2 %>%
+          mutate(colorValue = get(colorColumn))
+        
         map2.hatch <- hatched.SpatialPolygons(map2, density = 35, angle = c(0, 45, 90, 135))
         
-        map2 <- map2 %>%
+        map2_data <- map2 %>%
           st_drop_geometry()
         
         map2.hatch <- map2.hatch %>%
-          left_join(map2, by = "ID")
+          left_join(map2_data, by = "ID")
       } else {
         # No regions with < 30 observations, create empty sf object
         map2.hatch <- st_sf(geometry = st_sfc())
@@ -322,7 +339,7 @@ server <- function(id, reactiveData) {
         map_output <- map_output %>%
           addPolylines(
             data = map2.hatch,
-            color = ~ color_pal(get(colorColumn)),
+            color = ~ color_pal(colorValue),
             weight = 2,
           )
       }
