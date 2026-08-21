@@ -212,29 +212,12 @@ server <- function(id, reactiveData, processedGuideline, bp_log) {
       return(species)
     })
 
-    # For mapping between species and host values
-    host_mapping <- reactive({
-      req(bp_log())
-      bp_log() %>%
-        select(host = Species, mapped_host = `Host Used`) %>%
-        distinct()
-    })
-
     #' The mapped host name for the selected species.
-    #' Need to find the mapped host value from the bp_log.
-    #' The host value needs to be either:
-    #' "ECOFF", "aquatic", "cats", "cattle", "dogs", "horse", "human", "poultry", or "swine".
-    #' See https://amr-for-r.org/reference/clinical_breakpoints.html?q=host#format for more info.
+    #' Since Species is already standardized in the cleaned data,
+    #' we can use it directly.
     selected_host <- reactive({
       req(selectedSpecies())
-      selected_host <- tolower(selectedSpecies()) # Fallback value
-
-      host_map <- host_mapping() %>%
-        filter(host == selected_host)
-      if (nrow(host_map) > 0) {
-        selected_host <- host_map$mapped_host[1]
-      }
-      return(selected_host)
+      return(selectedSpecies())
     })
 
     appliedBpForDisplay <- reactive({
@@ -363,13 +346,10 @@ server <- function(id, reactiveData, processedGuideline, bp_log) {
           isUti <- FALSE
         }
         sel_host <- selected_host()
-        host_map <- host_mapping() %>%
-          filter(mapped_host %in% sel_host)
         allowed_values <- unique(c(
           tolower(customBp$Species),
           tolower(customBp$host),
-          sel_host,
-          host_map$host
+          sel_host
         ))
 
         data <- data %>%
@@ -381,12 +361,11 @@ server <- function(id, reactiveData, processedGuideline, bp_log) {
         # Data which matches the custom breakpoint criteria
         bp_mo      <- AMR::as.mo(customBp$Microorganism)
         bp_genus   <- AMR::mo_genus(bp_mo)
-        bp_species <- AMR::mo_species(bp_mo)
         bp_ab      <- AMR::ab_name(customBp$Antimicrobial)
         
         matchingData <- data %>%
           dplyr::filter(
-            host %in% allowed_values,
+            Species %in% allowed_values,
             Antimicrobial == bp_ab,
             UTI == isUti,
             mo == bp_mo | genus == bp_genus   # species OR genus match

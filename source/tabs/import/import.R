@@ -703,8 +703,8 @@ server <- function(id) {
 
     #' Remove extra columns from data previews
     #'
-    #' @note The "host" and "UTI" columns are used elsewhere so cannot be removed
-    #' but we do not want them to show in data previews.
+    #' @note The "UTI" column is used elsewhere so cannot be removed
+    #' but we do not want it to show in data previews.
     #'
     #' @param data  Data frame to remove extra columns from
     #' @return      Data frame with extra columns removed
@@ -713,7 +713,7 @@ server <- function(id) {
         return(data)
       }
       data <- data %>%
-        select(-any_of(c("InternalID", "host", "UTI")))
+        select(-any_of(c("InternalID", "UTI")))
       return(data)
     }
 

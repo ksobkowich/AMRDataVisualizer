@@ -4,6 +4,107 @@
 NULL
 
 
+#' Convert host/species codes to standardized AMR package host names.
+#' 
+#' This is a corrected implementation of the AMR package's convert_host() function,
+#' which has a bug where it converts input to lowercase but then checks against uppercase codes.
+#' 
+#' @param x Vector of host/species codes or names
+#' @return Vector of standardized host names compatible with AMR::clinical_breakpoints
+#' @seealso AMR::clinical_breakpoints for valid host values
+convert_host_fixed <- function(x) {
+  x_original <- x
+  x <- gsub("[^a-zA-Z ]", "", trimws(tolower(as.character(x))), perl = TRUE)
+  x_out <- rep(NA_character_, length(x))
+  
+  # Special cases
+  x_out[x == "human"] <- "human"
+  x_out[x == "ecoff"] <- "ECOFF"
+  
+  # Veterinary breakpoints - matching clinical_breakpoints$host (type == "animal")
+  # Check both uppercase abbreviations AND full names/patterns
+  
+  # Dogs
+  x_out[is.na(x_out) & (
+    toupper(x_original) == "CAN" | 
+    x == "dog" | x == "dogs" | x == "canine" | 
+    grepl("canis lupus", x, ignore.case = TRUE)
+  )] <- "dogs"
+  
+  # Cattle
+  x_out[is.na(x_out) & (
+    toupper(x_original) == "BOV" | 
+    x == "cattle" | x == "bovine" | 
+    grepl("bos taurus", x, ignore.case = TRUE)
+  )] <- "cattle"
+  
+  # Swine
+  x_out[is.na(x_out) & (
+    toupper(x_original) == "POR" | 
+    x == "swine" | x == "pig" | x == "pigs" | x == "porcine" | 
+    grepl("sus scrofa", x, ignore.case = TRUE)
+  )] <- "swine"
+  
+  # Cats
+  x_out[is.na(x_out) & (
+    toupper(x_original) == "FEL" | 
+    x == "cat" | x == "cats" | x == "feline" | 
+    grepl("felis catus", x, ignore.case = TRUE)
+  )] <- "cats"
+  
+  # Horse
+  x_out[is.na(x_out) & (
+    toupper(x_original) == "EQU" | 
+    x == "horse" | x == "horses" | x == "equine" | 
+    grepl("equus ferus", x, ignore.case = TRUE)
+  )] <- "horse"
+  
+  # Poultry
+  x_out[is.na(x_out) & (
+    toupper(x_original) %in% c("POUL", "AVI") | 
+    x == "bird" | x == "birds" | x == "chicken" | x == "poultry" | 
+    grepl("gallus gallus", x, ignore.case = TRUE)
+  )] <- "poultry"
+  
+  # Amphibian
+  x_out[is.na(x_out) & (
+    toupper(x_original) == "AMP" | 
+    x == "amphibian" | x == "frog" | x == "toad"
+  )] <- "amphibian"
+  
+  # Additional animals (less common)
+  x_out[is.na(x_out) & (
+    toupper(x_original) == "CAM" | 
+    x == "camel" | x == "camels" | x == "camelid"
+  )] <- "camels"
+  
+  x_out[is.na(x_out) & (
+    toupper(x_original) == "CER" | 
+    x == "deer" | x == "deers" | x == "cervine"
+  )] <- "deer"
+  
+  x_out[is.na(x_out) & (
+    toupper(x_original) == "CAP" | 
+    x == "goat" | x == "goats" | x == "caprine"
+  )] <- "goats"
+  
+  x_out[is.na(x_out) & (
+    toupper(x_original) == "LAG" | 
+    x == "rabbit" | x == "rabbits" | x == "leporine"
+  )] <- "rabbits"
+  
+  x_out[is.na(x_out) & (
+    toupper(x_original) == "OVI" | 
+    x == "sheep" | x == "sheeps" | x == "ovine"
+  )] <- "sheep"
+  
+  # Aquatic
+  x_out[is.na(x_out) & x == "aquatic"] <- "aquatic"
+  
+  return(x_out)
+}
+
+
 #' TODO: Documentation
 #' [Summary]
 #'
@@ -149,7 +250,10 @@ dataCleaner <- function(rawData, additionalCols = NULL, breakpoint = "CLSI") {
         },
         Region = str_to_title(Region),
         Subregion = str_to_sentence(Subregion),
-        Species = str_to_sentence(Species),
+    
+        # Pre-standardize Species using our fixed conversion function
+        Species = convert_host_fixed(Species),
+    
         Source = str_to_sentence(Source),
         Microorganism = mo_name,
         Antimicrobial = ab_name,
@@ -189,7 +293,7 @@ dataCleaner <- function(rawData, additionalCols = NULL, breakpoint = "CLSI") {
         mutate(
           ab = as.ab(Antimicrobial),
           mo = as.mo(Microorganism),
-          host = tolower(Species),
+          # host is already standardized in cleanedChunk, just use it directly
           Interpretation = MIC,
           MIC = as.character(MIC)
         ) |>
@@ -200,7 +304,7 @@ dataCleaner <- function(rawData, additionalCols = NULL, breakpoint = "CLSI") {
           ab = "ab",
           guideline = breakpoint,
           uti = "UTI",
-          host = "host",
+          host = "Species",
           breakpoint_type = getOption("AMR_breakpoint_type", "animal"),
           substitute_missing_r_breakpoint = getOption("AMR_substitute_missing_r_breakpoint", TRUE),
           capped_mic_handling = getOption("AMR_capped_mic_handling", "standard")
@@ -227,7 +331,6 @@ dataCleaner <- function(rawData, additionalCols = NULL, breakpoint = "CLSI") {
         "Class",
         "MIC",
         "Interpretation",
-        "host",
         "UTI"
       )))
 
@@ -269,21 +372,14 @@ dataCleaner <- function(rawData, additionalCols = NULL, breakpoint = "CLSI") {
       ) %>%
       distinct()
 
-    # Update the host in the cleaned data with the host that the AMR package converted it to
+    # Update the Species in the cleaned data with the host that the AMR package converted it to
     host_map <- bp_log %>%
       select(host = Species, mapped_host = `Host Used`) %>%
       distinct()
 
-    host_col <- case_when(
-      "host" %in% names(cleanData) ~ "host",
-      "Host" %in% names(cleanData) ~ "Host",
-      "Species" %in% names(cleanData) ~ "Species",
-      TRUE ~ NA_character_
-    )
-
     cleanData <- cleanData %>%
-      left_join(host_map, by = setNames("host", host_col)) %>%
-      mutate(!!host_col := coalesce(.data[[host_col]], mapped_host)) %>%
+      left_join(host_map, by = c("Species" = "host")) %>%
+      mutate(Species = coalesce(Species, mapped_host)) %>%
       select(-mapped_host)
   }
   uniqueSources <- unique(cleanData$Source)
