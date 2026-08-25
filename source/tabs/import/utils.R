@@ -111,8 +111,9 @@ convert_host_fixed <- function(x) {
 #' @param rawData [Description]
 #' @param additionalCols [Description]
 #' @param breakpoint [Description]
+#' @param skip_interpretation [Description]
 #' @return [Description]
-dataCleaner <- function(rawData, additionalCols = NULL, breakpoint = "CLSI") {
+dataCleaner <- function(rawData, additionalCols = NULL, breakpoint = "CLSI", skip_interpretation = FALSE) {
   # Precompute mappings
   ab_name_data <- unique(rawData$Antimicrobial) %>%
     data.frame(Antimicrobial = ., stringsAsFactors = FALSE) %>%
@@ -217,8 +218,9 @@ dataCleaner <- function(rawData, additionalCols = NULL, breakpoint = "CLSI") {
   #'
   #' @param chunk [Description]
   #' @param additionalCols [Description]
+  #' @param skip_interpretation [Description]
   #' @return [Description]
-  clean_chunk <- function(chunk, additionalCols = NULL) {
+  clean_chunk <- function(chunk, additionalCols = NULL, skip_interpretation = FALSE) {
     additionalColsData <- if (!is.null(additionalCols)) {
       chunk %>% select(all_of(additionalCols))
     } else {
@@ -282,7 +284,7 @@ dataCleaner <- function(rawData, additionalCols = NULL, breakpoint = "CLSI") {
         )
     }
 
-    if (!"Interpretation" %in% names(cleanedChunk)) {
+    if (!skip_interpretation && !"Interpretation" %in% names(cleanedChunk)) {
       key_cols <- c("MIC", "Species", "UTI", "Microorganism", "Antimicrobial")
 
       #' MIC has been chosen.
@@ -341,7 +343,7 @@ dataCleaner <- function(rawData, additionalCols = NULL, breakpoint = "CLSI") {
     return(cleanedChunk)
   }
 
-  cleanData <- clean_chunk(chunk = rawData, additionalCols = additionalCols)
+  cleanData <- clean_chunk(chunk = rawData, additionalCols = additionalCols, skip_interpretation = skip_interpretation)
 
   bp_log <- sir_interpretation_history()
   if (!is.null(bp_log) && nrow(bp_log) > 0) {
