@@ -63,6 +63,7 @@ server <- function(id) {
     wideData <- reactiveVal(FALSE)
     reactiveData <- reactiveVal(NULL)
     selections <- reactiveValues(
+      hasAstData = "Yes",
       idCol = NULL,
       dateCol = NULL,
       yearCol = NULL,
@@ -344,7 +345,7 @@ server <- function(id) {
                     )
                   ),
                   choices = c("No", "Yes"),
-                  selected = "No",
+                  selected = if (selections$hasAstData == "No") "Yes" else "No",
                   justified = TRUE
                 ),
 
@@ -920,6 +921,7 @@ server <- function(id) {
       ab_change_log(NULL)
       bp_log(NULL)
       uti_log(NULL)
+      
       showModal(modalDialog(
         title = tags$div(style = "text-align: center;", "Processing Your Data"),
         div(
@@ -946,7 +948,7 @@ server <- function(id) {
       i = (i + 1) %% steps.length;
     }, 4000);
   ",
-          if (is.null(input$valueType) || input$valueType != "SIR") {
+          if (selections$hasAstData == "Yes" && (is.null(input$valueType) || input$valueType != "SIR")) {
             ", 'Interpret MIC values'"
           } else {
             ""
@@ -968,47 +970,49 @@ server <- function(id) {
         easyClose = FALSE
       ))
 
-      results <- dataCleaner(
-        availableData(),
-        additionalCols = selections$additionalCols,
-        breakpoint = selections$selectedBreakpoint
-      )
-      bp_log(results$bp_log)
-      uti_log(results$uti_log)
-
-      # Determine if AST cleaning produced usable data.
-      hasAst <- !is.null(results$cleaned_data) && nrow(results$cleaned_data) > 0
-      if (hasAst) {
-        cleanedData(results$cleaned_data)
-      } else {
-        cleanedData(NULL)
-      }
-
-      # If the user opted to retain all cultures, run cleaning on the all-cultures data too.
-      allCulturesResults <- NULL
-      if (!is.null(input$retainAllCultures) && input$retainAllCultures == "Yes") {
-        allCulturesResults <- dataCleaner(
-          availableDataAllCultures(),
+      # Process based on whether user has AST data
+      if (selections$hasAstData == "Yes") {
+        # Standard AST processing
+        results <- dataCleaner(
+          availableData(),
           additionalCols = selections$additionalCols,
           breakpoint = selections$selectedBreakpoint
         )
-        cleanedDataAllCultures(allCulturesResults$cleaned_data)
-      } else {
-        cleanedDataAllCultures(NULL)
-      }
-
-      # Populate the change logs. Prefer AST-derived logs when available;
-      # otherwise fall back to logs derived from the all-cultures cleaning
-      # (which is the only cleaning that actually happened in AST-less mode).
-      if (hasAst) {
+        bp_log(results$bp_log)
+        uti_log(results$uti_log)
         mo_change_log(results$mo_log)
         ab_change_log(results$ab_log)
-      } else if (!is.null(allCulturesResults)) {
+        
+        cleanedData(results$cleaned_data)
+        
+        # Optionally process all-cultures too
+        if (!is.null(input$retainAllCultures) && input$retainAllCultures == "Yes") {
+          allCulturesResults <- dataCleaner(
+            availableDataAllCultures(),
+            additionalCols = selections$additionalCols,
+            breakpoint = selections$selectedBreakpoint,
+            skip_interpretation = TRUE
+          )
+          cleanedDataAllCultures(allCulturesResults$cleaned_data)
+        } else {
+          cleanedDataAllCultures(NULL)
+        }
+        
+      } else {
+        # No AST data - only process all-cultures
+        cleanedData(NULL)
+        bp_log(NULL)
+        uti_log(NULL)
+        
+        allCulturesResults <- dataCleaner(
+          availableDataAllCultures(),
+          additionalCols = selections$additionalCols,
+          breakpoint = selections$selectedBreakpoint,
+          skip_interpretation = TRUE
+        )
+        cleanedDataAllCultures(allCulturesResults$cleaned_data)
         mo_change_log(allCulturesResults$mo_log)
         ab_change_log(allCulturesResults$ab_log)
-      } else {
-        mo_change_log(NULL)
-        ab_change_log(NULL)
       }
 
       displayCleanedData(TRUE)
@@ -1025,6 +1029,7 @@ server <- function(id) {
 
     observe({
       req(input$sirCol)
+      selections$hasAstData <- input$hasAstData
       selections$idCol <- input$idCol
       selections$dateCol <- input$dateCol
       selections$yearCol <- input$yearCol
@@ -1038,11 +1043,12 @@ server <- function(id) {
       selections$drugCol <- input$drugCol
       selections$sirCol <- input$sirCol
 
-      # req here to stop setting these as NULL if inputs are not yet created
-      req(input$micSignCol, input$micValCol)
-      selections$micSignCol <- input$micSignCol
-      selections$micValCol <- input$micValCol
-      selections$selectedBreakpoint <- input$selectedBreakpoint
+      # Only update MIC-related selections if they exist (when valueType == "MIC")
+      if (!is.null(input$micSignCol) && !is.null(input$micValCol)) {
+        selections$micSignCol <- input$micSignCol
+        selections$micValCol <- input$micValCol
+        selections$selectedBreakpoint <- input$selectedBreakpoint
+      }
     })
 
     observe({
@@ -1059,6 +1065,26 @@ server <- function(id) {
             ## Main configuration tab -------------------------------------------------
             tabPanel(
               title = "Main Configuration",
+              
+              # Add AST data toggle at the very top
+              wellPanel(
+                style = "background-color: #f8f9fa; border: 2px solid #44CDC4;",
+                radioGroupButtons(
+                  ns("hasAstData"),
+                  label = tagList(
+                    strong("Does your data contain antimicrobial susceptibility test (AST) results?"),
+                    tags$br(),
+                    tags$small(
+                      style = "color: #888; font-weight: normal;",
+                      "Select 'No' if your data only contains organism culture results without susceptibility testing (S/I/R or MIC values)."
+                    )
+                  ),
+                  choices = c("Yes", "No"),
+                  selected = selections$hasAstData,
+                  justified = TRUE
+                )
+              ),
+              
               fluidRow(
                 column(
                   6,
@@ -1122,20 +1148,29 @@ server <- function(id) {
                   6,
                   h5("Microorganism Information"),
                   hr(),
-                  radioGroupButtons(
-                    ns("valueType"),
-                    "Data Format",
-                    choices = c("SIR", "MIC"),
-                    selected = selections$valueType,
-                    justified = TRUE
+                  
+                  conditionalPanel(
+                    condition = sprintf("input['%s'] == 'Yes'", ns("hasAstData")),
+                    radioGroupButtons(
+                      ns("valueType"),
+                      "Data Format",
+                      choices = c("SIR", "MIC"),
+                      selected = selections$valueType,
+                      justified = TRUE
+                    )
                   ),
+                  
                   selectizeInput(
                     ns("moCol"),
                     "Microorganism",
                     choices = c("Not Present", names(reactiveData())),
                     selected = selections$moCol
                   ),
-                  uiOutput(ns("valueInputs"))
+                  
+                  conditionalPanel(
+                    condition = sprintf("input['%s'] == 'Yes'", ns("hasAstData")),
+                    uiOutput(ns("valueInputs"))
+                  )
                 )
               ),
               class = "colAssignWell"
